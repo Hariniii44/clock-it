@@ -1,23 +1,194 @@
-# evidence_retrieval.py
+import spacy
 import requests
-from typing import List, Dict
-import os
+from typing import List, Dict, Set
+import re
+from datetime import datetime
+from urllib.parse import urlparse
+# from .query_builder import GeminiQueryBuilder
+from .groq_query_builder import GroqQueryBuilder
 
-class EvidenceRetriever:
-    def __init__(self, serpapi_key: str):
+class AdvancedEvidenceRetriever:
+    def __init__(self, serpapi_key: str, gemini_key: str = None, groq_key: str = None):
         self.serpapi_key = serpapi_key
         self.base_url = "https://serpapi.com/search"
+
+        # Initialize query builders in order of preference
+        self.query_builder = None
+
+        # Try Groq first (faster, more reliable)
+        if groq_key:
+            try:
+                self.query_builder = GroqQueryBuilder(groq_key)
+                self.query_provider = "Groq"
+                print("   ✅ Groq query builder initialized")
+            except Exception as e:
+                print(f"   ⚠️ Groq initialization failed: {e}")
+        
+        # Fallback to Gemini
+        # if not self.query_builder and gemini_key:
+        #     try:
+        #         self.query_builder = GeminiQueryBuilder(gemini_key)
+        #         self.query_provider = "Gemini"
+        #         print("   ✅ Gemini query builder initialized")
+        #     except Exception as e:
+        #         print(f"   ⚠️ Gemini initialization failed: {e}")
+        
+        if not self.query_builder:
+            self.query_provider = "Rule-based"
+            print("   ✅ Using rule-based query generation")
+        
+        # Load spaCy model
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+            print("   ✅ spaCy NER model loaded")
+        except Exception as e:
+            print(f"   ⚠️ Could not load spaCy model: {e}")
+            self.nlp = None
+        
+        # Source diversity categories
+        self.source_categories = {
+            'government': ['dailynews.lk', 'news.lk', 'parliament.lk'],
+            'opposition': ['themorning.lk', 'island.lk', 'economynext.com'],
+            'neutral': ['adaderana.lk', 'newsfirst.lk', 'ft.lk', 'dailymirror.lk'],
+            'international': ['worldbank.org', 'imf.org', 'reuters.com', 'bbc.com'],
+            'fact_checkers': ['factcheck.org', 'politifact.com', 'snopes.com']
+        }
     
-    def retrieve_evidence(self, claim: str, num_results: int = 5) -> List[Dict]:
-        """
-        FR02: Retrieve relevant evidence from news sources
-        """
+    def extract_claim_entities(self, claim: str) -> Dict[str, List[str]]:
+        """Extract key entities from the claim for targeted search"""
+        if not self.nlp:
+            return self._fallback_entity_extraction(claim)
+        
+        doc = self.nlp(claim)
+        
+        entities = {
+            'persons': [ent.text for ent in doc.ents if ent.label_ == 'PERSON'],
+            'organizations': [ent.text for ent in doc.ents if ent.label_ == 'ORG'],
+            'locations': [ent.text for ent in doc.ents if ent.label_ == 'GPE'],
+            'dates': [ent.text for ent in doc.ents if ent.label_ == 'DATE'],
+            'money': [ent.text for ent in doc.ents if ent.label_ == 'MONEY'],
+            'percentages': [ent.text for ent in doc.ents if ent.label_ == 'PERCENT'],
+            'actions': [token.lemma_ for token in doc if token.pos_ == 'VERB' and not token.is_stop]
+        }
+        
+        # Clean empty lists
+        entities = {k: v for k, v in entities.items() if v}
+        
+        return entities
+    
+    def _fallback_entity_extraction(self, claim: str) -> Dict[str, List[str]]:
+        """Simple regex-based extraction if spaCy fails"""
+        entities = {}
+        
+        # Extract percentages
+        percentages = re.findall(r'\d+(?:\.\d+)?%', claim)
+        if percentages:
+            entities['percentages'] = percentages
+        
+        # Extract money amounts
+        money = re.findall(r'Rs\.?\s*[\d,]+(?:\.\d+)?(?:\s*(?:bn|million|trillion|lakh|crore))?', claim)
+        if money:
+            entities['money'] = money
+        
+        # Extract years
+        dates = re.findall(r'\b(?:19|20)\d{2}\b', claim)
+        if dates:
+            entities['dates'] = dates
+        
+        return entities
+    
+    def build_targeted_queries(self, claim: str, entities: Dict) -> List[str]:
+        if self.query_builder:
+            print(f"   🤖 Generating queries with {self.query_provider}...")
+            queries = self.query_builder.generate_search_queries(claim, num_queries=5)
+            
+            if queries and len(queries) > 0:
+                return queries
+        
+        print("   📝 Using rule-based query generation...")
+        return self._build_rule_based_queries(claim, entities)
+
+
+    def _build_rule_based_queries(self, claim: str, entities: Dict) -> List[str]:
+        """Original rule-based query building (as backup)"""
+        # Your existing build_targeted_queries logic here
+        base_claim = claim
+        queries = []
+
+        queries.append(f'"{base_claim}" Sri Lanka')
+
+        if 'money' in entities:
+            for money in entities['money'][:2]:
+                queries.append(f'"{money}" Sri Lanka economy financial')
+    
+        if 'percentages' in entities:
+            for pct in entities['percentages'][:2]:
+                queries.append(f'"{pct}" Sri Lanka growth rate economic')
+
+        # Topic-specific queries
+        if any(word in claim.lower() for word in ['gdp', 'growth', 'economy']):
+            queries.append('Sri Lanka GDP growth economic performance')
+        
+        if any(word in claim.lower() for word in ['drug', 'mafia', 'crime']):
+            queries.append('Sri Lanka drug problem criminal gangs')
+        
+        # Ensure we have at least 5 queries
+        while len(queries) < 5:
+            queries.append(f'Sri Lanka {claim.split()[0]} news')
+        
+        return queries[:5]
+
+    
+    def retrieve_diverse_evidence(
+        self, 
+        claim: str, 
+        num_results: int = 5,
+        include_fact_checkers: bool = True
+    ) -> List[Dict]:
+        """Retrieve evidence with source diversity"""
+        
+        # Extract entities
+        entities = self.extract_claim_entities(claim)
+        print(f"   📊 Extracted entities: {entities}")
+        
+        # Build targeted queries
+        queries = self.build_targeted_queries(claim, entities)
+        print(f"   🔍 Built {len(queries)} targeted queries")
+        
+        all_results = []
+        seen_urls = set()
+        
+        # Execute multiple queries
+        for i, query in enumerate(queries):
+            print(f"      Query {i+1}: {query[:50]}...")
+            
+            results = self._search_single_query(
+                query, 
+                max_results=min(10, num_results * 2)
+            )
+            
+            # Add to results with deduplication
+            for result in results:
+                if result['link'] not in seen_urls:
+                    result['query_used'] = query
+                    result['source_alignment'] = self._classify_source_alignment(result['link'])
+                    result['relevance_score'] = self._calculate_relevance(claim, result, entities)
+                    all_results.append(result)
+                    seen_urls.add(result['link'])
+        
+        # Sort by relevance and diversity
+        diverse_results = self._ensure_source_diversity(all_results, num_results)
+        
+        return diverse_results[:num_results]
+    
+    def _search_single_query(self, query: str, max_results: int = 10) -> List[Dict]:
+        """Execute a single search query"""
         params = {
-            "q": claim,
+            "q": query,
             "api_key": self.serpapi_key,
-            "num": num_results,
-            "gl": "lk",  # Sri Lanka
-            "tbm": "nws"  # News search
+            "num": max_results,
+            "gl": "lk",
+            "tbm": "nws"
         }
         
         try:
@@ -25,7 +196,7 @@ class EvidenceRetriever:
             results = response.json()
             
             evidence = []
-            for result in results.get("news_results", [])[:num_results]:
+            for result in results.get("news_results", []):
                 evidence.append({
                     "title": result.get("title", ""),
                     "snippet": result.get("snippet", ""),
@@ -36,6 +207,87 @@ class EvidenceRetriever:
             
             return evidence
         except Exception as e:
-            print(f"Error retrieving evidence: {e}")
+            print(f"      ⚠️ Query failed: {e}")
             return []
+    
+    def _classify_source_alignment(self, url: str) -> str:
+        """Classify source political alignment"""
+        domain = self._extract_domain(url)
+        
+        for alignment, domains in self.source_categories.items():
+            if any(d in domain for d in domains):
+                return alignment
+        
+        return 'unknown'
+    
+    def _calculate_relevance(self, claim: str, result: Dict, entities: Dict) -> float:
+        """Calculate relevance score for ranking"""
+        score = 0.0
+        
+        text = f"{result['title']} {result['snippet']}".lower()
+        claim_lower = claim.lower()
+        
+        # Exact phrase match
+        if claim_lower in text:
+            score += 1.0
+        
+        # Entity matches
+        for entity_type, entity_list in entities.items():
+            for entity in entity_list:
+                if entity.lower() in text:
+                    score += 0.5
+        
+        # Keyword overlap
+        claim_words = set(claim_lower.split())
+        text_words = set(text.split())
+        overlap = len(claim_words.intersection(text_words)) / len(claim_words)
+        score += overlap
+        
+        # Boost for known quality sources
+        domain = self._extract_domain(result['link'])
+        if any(quality_domain in domain for quality_domain in [
+            'worldbank.org', 'imf.org', 'reuters.com', 'bbc.com', 
+            'centralbank.lk', 'statistics.gov.lk'
+        ]):
+            score += 0.5
+        
+        return min(score, 2.0)  # Cap at 2.0
+    
+    def _ensure_source_diversity(self, results: List[Dict], target_count: int) -> List[Dict]:
+        """Ensure diverse source representation"""
+        # Sort by relevance first
+        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        selected = []
+        alignment_counts = {alignment: 0 for alignment in self.source_categories.keys()}
+        alignment_counts['unknown'] = 0
+        
+        for result in results:
+            alignment = result['source_alignment']
+            
+            # Always take high-relevance results
+            if result['relevance_score'] > 1.5:
+                selected.append(result)
+                alignment_counts[alignment] += 1
+                continue
+            
+            # Ensure diversity
+            if len(selected) < target_count:
+                if alignment_counts[alignment] < 2:  # Max 2 per alignment
+                    selected.append(result)
+                    alignment_counts[alignment] += 1
+        
+        return selected
+    
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain from URL"""
+        try:
+            return urlparse(url).netloc.lower()
+        except:
+            return url.lower()
 
+# Backward compatibility wrapper
+class EvidenceRetriever(AdvancedEvidenceRetriever):
+    def retrieve_evidence(self, claim: str, num_results: int = 5) -> List[Dict]:
+        """Backward compatible method"""
+        return self.retrieve_diverse_evidence(claim, num_results)
