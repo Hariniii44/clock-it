@@ -13,7 +13,7 @@ class ClaimVerifier:
         
         # List of models to try in order of preference
         models_to_try = [
-            # "microsoft/deberta-v3-large-mnli",  # Try v3 large first
+            "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli",  # Preferred model
             "microsoft/deberta-large-mnli",     # Then v1 large
             "microsoft/deberta-base-mnli",      # Then v1 base
             "facebook/bart-large-mnli",         # Reliable fallback
@@ -51,18 +51,28 @@ class ClaimVerifier:
         Returns: {label: str, confidence: float}
         """
         # Truncate to model's max length
-        text = f"{claim} [SEP] {evidence}"[:512]
+        # text = f"{claim} [SEP] {evidence}"[:512]
         
-        result = self.nli_model(text)[0]
-        
+        # result = self.nli_model(text)[0]
+
+        nli_input = f"{evidence} </s> {claim}"
+
+        result = self.nli_model(nli_input)
+
+        print(f"      RAW MODEL OUTPUT: {result}")
+
         # Map NLI labels to fact-checking labels
         label_map = {
             "ENTAILMENT": "SUPPORTED",
             "CONTRADICTION": "REFUTED",
-            "NEUTRAL": "NEUTRAL"
+            "NEUTRAL": "NEUTRAL", 
+            "entailment": "SUPPORTED",
+            "contradiction": "REFUTED",
+            "neutral": "NEUTRAL"
         }
         
         return {
-            "label": label_map.get(result["label"], "NEUTRAL"),
-            "confidence": result["score"]
-        }
+            "label": label_map.get(result[0]["label"], "NEUTRAL"),
+            "confidence": result[0]["score"]
+       }
+    
