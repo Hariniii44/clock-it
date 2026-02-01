@@ -1,0 +1,38 @@
+{
+  "dailymirror.lk": {
+    "bias_score": 50.0,
+    "interpretation": "Strong Pro-government",
+    "articles_analyzed": 702,
+    "confidence": 0.7
+  },
+  "economynext.com": {
+    "bias_score": 23.28,
+    "interpretation": "Pro-government",
+    "articles_analyzed": 560,
+    "confidence": 0.56
+  },
+  "island.lk": {
+    "bias_score": -50.0,
+    "interpretation": "Strong Opposition-leaning",
+    "articles_analyzed": 981,
+    "confidence": 0.95
+  },
+  "newsfirst.lk": {
+    "bias_score": -24.65,
+    "interpretation": "Opposition-leaning",
+    "articles_analyzed": 50,
+    "confidence": 0.5
+  },
+  "adaderana.lk": {
+    "bias_score": -11.51,
+    "interpretation": "Opposition-leaning",
+    "articles_analyzed": 1778,
+    "confidence": 0.95
+  },
+  "ft.lk": {
+    "bias_score": -24.8,
+    "interpretation": "Opposition-leaning",
+    "articles_analyzed": 1464,
+    "confidence": 0.95
+  }
+}
