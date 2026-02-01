@@ -137,16 +137,15 @@ class Config:
         
         return True
     
-    @classmethod
-    def print_config(cls):
-        """Print current configuration (for debugging)"""
-        print("\n" + "="*60)
+    @staticmethod
+    def print_config():
+        print("="*60)
         print("CONFIGURATION")
         print("="*60)
-        print(f"API Key: {cls.SERPAPI_KEY[:10]}...{cls.SERPAPI_KEY[-5:] if cls.SERPAPI_KEY else 'NOT SET'}")
-        print(f"NLI Model: {cls.NLI_MODEL}")
-        print(f"Sentiment Model: {cls.SENTIMENT_MODEL}")
-        print(f"Evidence Sources: {cls.NUM_EVIDENCE_SOURCES}")
-        print(f"Search Region: {cls.SEARCH_REGION}")
-        print(f"Known Sources: {len(cls.KNOWN_SOURCES)}")
-        print("="*60 + "\n")
+        print(f"API Key: {Config.SERPAPI_KEY[:10]}...{Config.SERPAPI_KEY[-5:]}")
+        print(f"NLI Model: {Config.NLI_MODEL}")
+        print(f"Sentiment Model: {Config.SENTIMENT_MODEL}")
+        print(f"Evidence Sources: {Config.NUM_EVIDENCE_SOURCES}")
+        print(f"Search Region: {Config.SEARCH_REGION}")
+        print(f"Known Sources: {len(Config.KNOWN_SOURCES)}")
+        print("="*60)
