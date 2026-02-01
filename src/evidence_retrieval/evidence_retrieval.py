@@ -142,8 +142,9 @@ class AdvancedEvidenceRetriever:
     def retrieve_diverse_evidence(
         self, 
         claim: str, 
-        num_results: int = 5,
-        include_fact_checkers: bool = True
+        num_results: int = 10,
+        include_fact_checkers: bool = True,
+        use_ai_filtering: bool = True
     ) -> List[Dict]:
         """Retrieve evidence with source diversity"""
         
@@ -164,7 +165,7 @@ class AdvancedEvidenceRetriever:
             
             results = self._search_single_query(
                 query, 
-                max_results=min(10, num_results * 2)
+                max_results=min(15, num_results * 3)
             )
             
             # Add to results with deduplication
@@ -175,6 +176,14 @@ class AdvancedEvidenceRetriever:
                     result['relevance_score'] = self._calculate_relevance(claim, result, entities)
                     all_results.append(result)
                     seen_urls.add(result['link'])
+
+        print(f"   📋 Found {len(all_results)} initial results")
+
+        #ai powred filtering
+        if use_ai_filtering and self.query_builder and hasattr(self.query_builder, 'filter_relevant_evidence'):
+            print(f"   🤖 Applying AI relevance filtering...")
+            all_results = self.query_builder.filter_relevant_evidence(claim, all_results)
+            print(f"   📋 {len(all_results)} results after AI filtering")
         
         # Sort by relevance and diversity
         diverse_results = self._ensure_source_diversity(all_results, num_results)
@@ -254,25 +263,37 @@ class AdvancedEvidenceRetriever:
         return min(score, 2.0)  # Cap at 2.0
     
     def _ensure_source_diversity(self, results: List[Dict], target_count: int) -> List[Dict]:
-        """Ensure diverse source representation"""
-        # Sort by relevance first
-        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        """Enhanced diversity with AI relevance priority"""
+        
+        # Create priority scoring system
+        for result in results:
+            priority_score = result.get('relevance_score', 0)
+            
+            # Boost for AI-determined high relevance
+            if result.get('ai_relevance') == 'HIGHLY_RELEVANT':
+                priority_score += 2.0
+            elif result.get('ai_relevance') == 'MODERATELY_RELEVANT':
+                priority_score += 1.0
+            
+            result['priority_score'] = priority_score
+        
+        # Sort by priority (AI relevance + traditional relevance)
+        results.sort(key=lambda x: x['priority_score'], reverse=True)
         
         selected = []
         alignment_counts = {alignment: 0 for alignment in self.source_categories.keys()}
         alignment_counts['unknown'] = 0
         
+        # First pass: Take highly relevant evidence regardless of diversity
         for result in results:
-            alignment = result['source_alignment']
-            
-            # Always take high-relevance results
-            if result['relevance_score'] > 1.5:
+            if result.get('ai_relevance') == 'HIGHLY_RELEVANT' and len(selected) < target_count:
                 selected.append(result)
-                alignment_counts[alignment] += 1
-                continue
-            
-            # Ensure diversity
-            if len(selected) < target_count:
+                alignment_counts[result['source_alignment']] += 1
+        
+        # Second pass: Fill remaining slots with diversity considerations
+        for result in results:
+            if result not in selected and len(selected) < target_count:
+                alignment = result['source_alignment']
                 if alignment_counts[alignment] < 2:  # Max 2 per alignment
                     selected.append(result)
                     alignment_counts[alignment] += 1
