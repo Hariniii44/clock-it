@@ -180,6 +180,41 @@ if __name__ == "__main__":
     # Generate final verdict with enhanced information
     final_verdict = verdict_generator.generate_verdict(weighted_evidence)
 
+    # NEW: Generate AI synthesis
+    from src.synthesis import SynthesisEngine
+    synthesizer = SynthesisEngine(Config.GROQ_API_KEY)
+    ai_synthesis = synthesizer.generate_synthesis(
+        claim, evidence, verification_results, bias_analyses, final_verdict
+    )
+
+    # NEW: Display synthesis first (Option C format)
+    print("="*60)
+    print("AI SYNTHESIS")
+    print("="*60)
+    print(f"📝 {ai_synthesis}")
+    print()
+    
+    print(f"✅ FACT-CHECK VERDICT: {final_verdict['verdict']} ({final_verdict['confidence']:.0%} confidence)")
+    print()
+    
+    print("▼ Detailed Analysis Available:")
+    print("   📊 Evidence Breakdown")
+    print("   ⚖️ Bias Analysis") 
+    print("   🔍 Uncertainty Analysis")
+    print("   🚀 System Performance")
+    print()
+
+    # Show detailed analysis
+    print("="*60)
+    print("DETAILED ANALYSIS")
+    print("="*60)
+
+    # Continue with existing detailed output...
+    print(f"Support Score: {final_verdict['support_score']:.2%}")
+    print(f"Refute Score: {final_verdict['refute_score']:.2%}")
+    print(f"Neutral Score: {final_verdict['neutral_score']:.2%}")
+
+
     print("="*60)
     print("FINAL VERDICT")
     print("="*60)
