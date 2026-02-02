@@ -179,11 +179,19 @@ class AdvancedEvidenceRetriever:
 
         print(f"   📋 Found {len(all_results)} initial results")
 
+        print(f"   DEBUG: use_ai_filtering={use_ai_filtering}")
+        print(f"   DEBUG: self.query_builder exists={self.query_builder is not None}")
+        if self.query_builder:
+            print(f"   DEBUG: has filter method={hasattr(self.query_builder, 'filter_relevant_evidence')}")
+
         #ai powred filtering
         if use_ai_filtering and self.query_builder and hasattr(self.query_builder, 'filter_relevant_evidence'):
             print(f"   🤖 Applying AI relevance filtering...")
             all_results = self.query_builder.filter_relevant_evidence(claim, all_results)
             print(f"   📋 {len(all_results)} results after AI filtering")
+
+        else:
+            print(f"   ⚠️ AI filtering skipped - conditions not met")
         
         # Sort by relevance and diversity
         diverse_results = self._ensure_source_diversity(all_results, num_results)
@@ -309,6 +317,58 @@ class AdvancedEvidenceRetriever:
 
 # Backward compatibility wrapper
 class EvidenceRetriever(AdvancedEvidenceRetriever):
-    def retrieve_evidence(self, claim: str, num_results: int = 5) -> List[Dict]:
-        """Backward compatible method"""
-        return self.retrieve_diverse_evidence(claim, num_results)
+    def retrieve_evidence(self, claim: str, num_sources: int = 5) -> List[Dict]:
+        """Retrieve and filter evidence for a given claim"""
+        
+        # Step 1: Extract entities
+        entities = self.extract_claim_entities(claim)
+        print(f"   📊 Extracted entities: {entities}")
+        
+        # Step 2: Generate targeted queries
+        if self.query_builder:
+            print("   🤖 Generating queries with Groq...")
+            queries = self.query_builder.generate_search_queries(claim, num_queries=5)
+            print(f"   🔍 Built {len(queries)} targeted queries")
+            for i, query in enumerate(queries, 1):
+                print(f"      Query {i}: {query[:50]}...")
+        else:
+            queries = self.build_targeted_queries(claim, entities)
+        
+        # Step 3: Execute searches and collect raw results
+        all_results = []
+        for query in queries:
+            try:
+                results = self._execute_search(query)
+                all_results.extend(results)
+            except Exception as e:
+                print(f"      ⚠️ Search failed for query: {e}")
+                continue
+        
+        print(f"   📋 Found {len(all_results)} initial results")
+        
+        # Step 4: Remove duplicates
+        unique_results = self._remove_duplicates(all_results)
+        
+        # NEW STEP 5: Apply AI relevance filtering (THIS IS MISSING!)
+        if self.query_builder and len(unique_results) > 0:
+            print("   🤖 Applying AI relevance filtering...")
+            filtered_evidence = self.query_builder.filter_relevant_evidence(claim, unique_results)
+            print(f"   📋 {len(filtered_evidence)} results after AI filtering")
+        else:
+            filtered_evidence = unique_results
+        
+        # Step 6: Apply traditional relevance scoring and select top results
+        if len(filtered_evidence) > 0:
+            # Score remaining evidence
+            for evidence in filtered_evidence:
+                evidence['relevance_score'] = self._calculate_relevance(claim, evidence, entities)
+            
+            # Sort by relevance and take top results
+            sorted_evidence = sorted(filtered_evidence, key=lambda x: x['relevance_score'], reverse=True)
+            final_evidence = sorted_evidence[:num_sources]
+            
+            print(f"   ✅ Found {len(final_evidence)} evidence sources")
+            return final_evidence
+        else:
+            print("   ❌ No relevant evidence found")
+            return []
