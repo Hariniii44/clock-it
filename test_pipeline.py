@@ -34,11 +34,24 @@ if __name__ == "__main__":
     weighter = EvidenceWeighter()
     verdict_generator = VerdictGenerator()
     
-    # Step 3: Test with sample claim
-    print("\n3. Testing with sample claim...")
+    # Step 3: Test with user input claim
+    print("\n3. Testing with user input claim...")
+
+    print("\n" + "="*60)
+    print("Enter claim to fact-check")
+    print("="*60)
+    print("Examples:")
+    print(" - Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia.")
+    print(" - Sri Lanka's IMF bailout program has improved the country's economic stability.")
+    print("\nEnter your claim below:")
+    claim = input(">> ").strip()
+
+    if not claim:
+        print("No claim entered.")
+        exit(1)
 
     
-    claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
+    # claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
     
     # claim = "President Anura Kumara Dissanayake said that giving rice to animals is a reason for the country's rice shortage."
 
@@ -57,7 +70,7 @@ if __name__ == "__main__":
     # # Opposition criticism claim (should trigger bias differences)
     # claim = "President Anura Kumara Dissanayake has fulfilled his election promises to fight corruption."
 
-    print(f"\n   CLAIM: {claim}")
+    print(f"\n   Analyzing claim: {claim}")
     
     # Retrieve evidence
     print(f"\n   Retrieving {Config.NUM_EVIDENCE_SOURCES} evidence sources...")
@@ -75,8 +88,8 @@ if __name__ == "__main__":
     )
 
     # Show retrieval analysis
-    print(f"   ✅ Found {len(evidence)} evidence sources")
-    print("   📊 Source diversity:")
+    print(f"   Found {len(evidence)} evidence sources")
+    print("   Source diversity:")
     alignments = {}
     for e in evidence:
         alignment = e.get('source_alignment', 'unknown')
@@ -107,12 +120,12 @@ if __name__ == "__main__":
             print(f"      🇱🇰 {domain}")
 
     if sri_lankan_preview == 0:
-        print("      ⚠️ No Sri Lankan sources detected - bias profiling will be limited")
+        print("       No Sri Lankan sources detected - bias profiling will be limited")
     else:
-        print(f"      ✅ {sri_lankan_preview} Sri Lankan sources detected")
+        print(f"       {sri_lankan_preview} Sri Lankan sources detected")
     
     if not evidence:
-        print("   ❌ No evidence found")
+        print("   No evidence found")
         exit(1)
 
     verification_results = []
@@ -143,22 +156,22 @@ if __name__ == "__main__":
         # Check if source profile is available
         if "source_profile" in bias_analysis and bias_analysis["source_profile"]["has_profile"]:
             profile = bias_analysis["source_profile"]
-            print(f"      ✅ Source Profile Available: {profile['source']}")
-            print(f"      📊 Bias Profile: {profile['bias_interpretation']} ({profile['bias_score']:+.1f})")
-            print(f"      🎯 Profile Confidence: {profile['confidence']:.0%} ({profile['articles_analyzed']} articles)")
+            print(f"       Source Profile Available: {profile['source']}")
+            print(f"       Bias Profile: {profile['bias_interpretation']} ({profile['bias_score']:+.1f})")
+            print(f"       Profile Confidence: {profile['confidence']:.0%} ({profile['articles_analyzed']} articles)")
             
             if "combined_score" in bias_analysis:
                 combined = bias_analysis["combined_score"]
-                print(f"      🔄 Analysis Method: {combined['method']}")
-                print(f"      📈 Overall Bias Score: {combined['overall_bias']:.2f}")
+                print(f"       Analysis Method: {combined['method']}")
+                print(f"       Overall Bias Score: {combined['overall_bias']:.2f}")
                 if combined["method"] == "combined":
-                    print(f"      🎯 Source Bias Component: {combined.get('source_bias_score', 'N/A')}")
+                    print(f"       Source Bias Component: {combined.get('source_bias_score', 'N/A')}")
         else:
-            print(f"      ❌ No Pre-computed Profile Available")
-            print(f"      🔄 Using Real-time Analysis Only")
+            print(f"       No Pre-computed Profile Available")
+            print(f"       Using Real-time Analysis Only")
 
         # Real-time analysis results
-        print(f"      📝 Real-time Analysis:")
+        print(f"       Real-time Analysis:")
         print(f"         Political Stance: {bias_analysis['political_stance']['political_stance']} "
               f"(score: {bias_analysis['political_stance']['stance_score']:.1f})")
         print(f"         Emotional Tone: {bias_analysis['emotional_tone']['emotion']} "
@@ -175,7 +188,7 @@ if __name__ == "__main__":
     )
 
     # Enhanced weighting display
-    print("   🏋️ EVIDENCE WEIGHTING RESULTS:")
+    print("    EVIDENCE WEIGHTING RESULTS:")
     for i, item in enumerate(weighted_evidence, 1):
         evidence_url = item["evidence"].get("link", "")
         domain = weighter._extract_domain(evidence_url) if evidence_url else "Unknown"
@@ -200,17 +213,17 @@ if __name__ == "__main__":
     print("="*60)
     print("AI SYNTHESIS")
     print("="*60)
-    print(f"📝 {ai_synthesis}")
+    print(f" {ai_synthesis}")
     print()
     
     print(f"✅ FACT-CHECK VERDICT: {final_verdict['verdict']} ({final_verdict['confidence']:.0%} confidence)")
     print()
     
     print("▼ Detailed Analysis Available:")
-    print("   📊 Evidence Breakdown")
-    print("   ⚖️ Bias Analysis") 
-    print("   🔍 Uncertainty Analysis")
-    print("   🚀 System Performance")
+    print("    Evidence Breakdown")
+    print("    Bias Analysis") 
+    print("    Uncertainty Analysis")
+    print("    System Performance")
     print()
 
     # Show detailed analysis
@@ -282,7 +295,7 @@ if __name__ == "__main__":
     print(f"🌐 International/Unknown Sources: {len(weighted_evidence) - sri_lankan_sources}")
 
     if sources_with_profiles > 0:
-        print(f"\n📈 Bias Distribution of Profiled Sources:")
+        print(f"\n Bias Distribution of Profiled Sources:")
         for category, count in bias_distribution.items():
             if count > 0:
                 emoji = {"opposition": "🔴", "neutral": "🟡", "pro_government": "🟢"}[category]
@@ -290,14 +303,14 @@ if __name__ == "__main__":
         
         # Calculate and show bias impact
         avg_bias_impact = total_bias_impact / len(weighted_evidence) if weighted_evidence else 0
-        print(f"\n⚖️ Average Bias Impact: {avg_bias_impact:.3f}")
+        print(f"\n Average Bias Impact: {avg_bias_impact:.3f}")
         
         if avg_bias_impact > 0.3:
-            print("   📊 High bias impact detected - weights significantly adjusted")
+            print("    High bias impact detected - weights significantly adjusted")
         elif avg_bias_impact > 0.1:
-            print("   📊 Moderate bias impact - weights moderately adjusted") 
+            print("    Moderate bias impact - weights moderately adjusted") 
         else:
-            print("   📊 Low bias impact - minimal weight adjustments")
+            print("    Low bias impact - minimal weight adjustments")
 
     # Integration status with more granular feedback
     if sources_with_profiles >= 3:
@@ -307,14 +320,14 @@ if __name__ == "__main__":
     else:
         status = "⚠️ LIMITED"
 
-    print(f"\n🎯 Bias-aware weighting: {status}")
+    print(f"\n Bias-aware weighting: {status}")
 
     # Performance summary
-    print(f"\n🚀 SYSTEM PERFORMANCE:")
-    print(f"   Evidence Retrieval: ✅ {len(evidence)} sources found")
+    print(f"\nSYSTEM PERFORMANCE:")
+    print(f"   Evidence Retrieval:  {len(evidence)} sources found")
     print(f"   Bias Profiling: {status.split()[1]} ({sources_with_profiles} profiled sources)")
-    print(f"   Verification: ✅ All sources processed")
-    print(f"   Final Verdict: ✅ {final_verdict['verdict']} ({final_verdict['confidence']:.0%})")
+    print(f"   Verification:  All sources processed")
+    print(f"   Final Verdict:  {final_verdict['verdict']} ({final_verdict['confidence']:.0%})")
 
     print("="*60)
     print("TEST COMPLETE")

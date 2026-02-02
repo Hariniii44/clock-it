@@ -1,18 +1,17 @@
 import requests
 import time
 from typing import List, Dict
-from urllib.parse import quote_plus
 
 class MultiSourceRetriever:
     def __init__(self, serper_key: str, bing_key: str = None):
         self.serper_key = serper_key
-        self.bing_key = bing_key
+        # self.bing_key = bing_key
         self.last_request_time = 0
         self.min_request_interval = 1.0  # 1 second between requests
         
         # Search endpoints
         self.serper_url = "https://google.serper.dev/search"
-        self.bing_url = "https://api.bing.microsoft.com/v7.0/search"
+        # self.bing_url = "https://api.bing.microsoft.com/v7.0/search"
     
     def _rate_limit(self):
         """Ensure we don't exceed rate limits"""
@@ -31,7 +30,7 @@ class MultiSourceRetriever:
         
         # PRIORITY 0: Search for the original claim first if provided
         if original_claim:
-            print(f"      🎯 Original Claim: {original_claim[:60]}...")
+            print(f"      Original Claim: {original_claim[:60]}...")
             
             # Search official sources for original claim
             official_results = self._search_official_sources(original_claim, 4)
@@ -70,7 +69,7 @@ class MultiSourceRetriever:
             news_results = self._search_sri_lankan_news(question, max_per_source // 3)
             all_evidence.extend(news_results)
             
-            # PRIORITY 4: General search (Google/Bing) 
+            # PRIORITY 4: General search (Google) 
             google_results = self._search_google(question, max_per_source // 4)
             for result in google_results:
                 result['source_engine'] = 'google'
@@ -93,7 +92,7 @@ class MultiSourceRetriever:
         
         results = []
         for official_query in official_queries:
-            print(f"            🔍 Searching: {official_query}")
+            print(f"            Searching: {official_query}")
             try:
                 search_results = self._search_google(official_query, max_results // len(official_queries))
                 print(f"            📊 Found {len(search_results)} results")
@@ -160,7 +159,7 @@ class MultiSourceRetriever:
             'type': 'search'
         }
         
-        print(f"            🔍 Serper search: {query[:50]}...")
+        print(f"            Serper search: {query[:50]}...")
         
         try:
             response = requests.post(self.serper_url, headers=headers, json=payload)
@@ -168,7 +167,7 @@ class MultiSourceRetriever:
             
             if response.status_code == 200:
                 results = response.json()
-                print(f"            📊 Raw results keys: {list(results.keys())}")
+                print(f"            Raw results keys: {list(results.keys())}")
                 
                 evidence = []
                 
@@ -198,19 +197,19 @@ class MultiSourceRetriever:
                         "relevance_score": 0.0
                     })
                 
-                print(f"            ✅ Extracted {len(evidence)} pieces")
+                print(f"            Extracted {len(evidence)} pieces")
                 return evidence
                 
             elif response.status_code == 429:
-                print(f"            ⚠️ Rate limited. Waiting 2 seconds...")
+                print(f"             Rate limited. Waiting 2 seconds...")
                 time.sleep(2)
                 return []
             else:
-                print(f"            ⚠️ Serper error {response.status_code}: {response.text[:100]}")
+                print(f"            Serper error {response.status_code}: {response.text[:100]}")
                 return []
                 
         except Exception as e:
-            print(f"            ⚠️ Serper search failed: {e}")
+            print(f"            Serper search failed: {e}")
             return []
 
     def _get_source_priority_tier(self, url: str) -> str:

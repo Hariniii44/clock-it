@@ -1,88 +1,11 @@
 from groq import Groq
-from typing import List, Dict  # Added missing Dict import
+from typing import List, Dict
 import json
 
 class GroqQueryBuilder:
     def __init__(self, api_key: str):
         self.client = Groq(api_key=api_key)
-        # Use the correct model name for Groq
-        self.model = "llama-3.1-8b-instant"  # Fixed model name
-    
-    # def generate_search_queries(self, claim: str, num_queries: int = 5) -> List[str]:
-    #     """Enhanced search query generation with quote-specific and targeted searches"""
-        
-    #     # Analyze claim type for specialized strategies
-    #     claim_analysis = self._analyze_claim_type(claim)
-        
-    #     prompt = f"""
-    #     You are an expert fact-checker designing search queries for Sri Lankan sources.
-        
-    #     CLAIM TO VERIFY: "{claim}"
-        
-    #     CLAIM ANALYSIS: {claim_analysis['description']}
-        
-    #     Generate {num_queries} diverse, targeted search queries using these specialized strategies:
-        
-    #     STRATEGY 1 - EXACT QUOTE SEARCHES (for statements/announcements):
-    #     - Use exact quotes in search: "specific phrase from claim"
-    #     - Target presidential statements, ministerial announcements
-    #     - Include speaker attribution: "President said" + key phrases
-        
-    #     STRATEGY 2 - OFFICIAL SOURCE TARGETING:
-    #     - Government press releases: site:news.lk, site:president.gov.lk
-    #     - Ministry statements: site:agrimin.gov.lk (for agricultural claims)
-    #     - Parliamentary records: site:parliament.lk
-        
-    #     STRATEGY 3 - OPPOSITION/CRITICISM SEARCHES:
-    #     - Opposition responses to government claims
-    #     - Critical analysis of statements: "criticism", "response", "refutes"
-    #     - Independent verification attempts
-        
-    #     STRATEGY 4 - CONTEXTUAL/BACKGROUND:
-    #     - Related policy discussions
-    #     - Expert opinions and analysis
-    #     - Historical context for claims
-        
-    #     STRATEGY 5 - FACT-CHECKING SPECIFIC:
-    #     - Verification attempts by media
-    #     - Follow-up reporting on controversial statements
-    #     - Data/evidence supporting or refuting claims
-        
-    #     For this specific claim type ({claim_analysis['type']}):
-    #     {claim_analysis['specific_strategies']}
-        
-    #     Return ONLY a JSON array of search query strings:
-    #     ["query1", "query2", "query3", ...]
-    #     """
-
-    #     try:
-    #         response = self.client.chat.completions.create(
-    #             model=self.model,
-    #             messages=[{"role": "user", "content": prompt}],
-    #             max_tokens=600,  # Increased for more detailed queries
-    #             temperature=0.3
-    #         )
-            
-    #         response_text = response.choices[0].message.content.strip()
-            
-    #         # Parse JSON response
-    #         if "```json" in response_text:
-    #             response_text = response_text.split("```json")[1].split("```")[0].strip()
-    #         elif "```" in response_text:
-    #             response_text = response_text.split("```")[1].split("```")[0].strip()
-            
-    #         queries = json.loads(response_text)
-            
-    #         # Validate and enhance queries
-    #         if isinstance(queries, list) and len(queries) > 0:
-    #             enhanced_queries = self._enhance_queries_with_strategies(claim, queries)
-    #             return enhanced_queries[:num_queries]
-    #         else:
-    #             return self._strategic_fallback_queries(claim, num_queries)
-
-    #     except Exception as e:
-    #         print(f"      ⚠️ Enhanced query generation failed: {e}")
-    #         return self._strategic_fallback_queries(claim, num_queries)
+        self.model = "llama-3.1-8b-instant"
 
     def generate_search_queries(self, claim: str, num_queries: int = 5) -> List[str]:
         """Generate diverse query variations of the same claim for maximum coverage"""

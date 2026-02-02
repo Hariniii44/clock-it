@@ -293,8 +293,8 @@ class EvidenceWeighter:
         
         if is_political_claim:
             # For political claims, source bias is highly relevant
-            source_component = (source_bias_score / 50) * 0.8  # Increase weight for political claims
-            text_component = text_bias * 0.2
+            source_component = (source_bias_score / 50) * 0.8  # Increase weight for political claims. 80% weight to source
+            text_component = text_bias * 0.2           # 20% weight to text
             alignment = source_component + text_component
             alignment *= source_confidence  # Weight by profile confidence
         else:

@@ -13,11 +13,11 @@ class ClaimVerifier:
         
         # List of models to try in order of preference
         models_to_try = [
-            "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli",  # Preferred model
-            "microsoft/deberta-large-mnli",     # Then v1 large
-            "microsoft/deberta-base-mnli",      # Then v1 base
-            "facebook/bart-large-mnli",         # Reliable fallback
-            "typeform/distilbert-base-uncased-mnli"  # Lightweight fallback
+            "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli",  
+            "microsoft/deberta-large-mnli",     
+            "microsoft/deberta-base-mnli",      
+            "facebook/bart-large-mnli",         
+            "typeform/distilbert-base-uncased-mnli"  
         ]
         
         self.nli_model = None

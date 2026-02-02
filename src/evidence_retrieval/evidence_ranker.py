@@ -7,7 +7,6 @@ class EvidenceRanker:
         """Initialize cross-encoder for evidence ranking following LiveFC approach"""
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        # Use the same model as LiveFC paper
         model_name = "cross-encoder/ms-marco-MiniLM-L-12-v2"
         
         try:

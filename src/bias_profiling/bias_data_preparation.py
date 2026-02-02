@@ -34,7 +34,7 @@ class BiasDataPreparation:
             # Extract source from url_metadata column
             if 'url_metadata' in df_english.columns:
                 df_english['source'] = df_english['url_metadata'].apply(self.extract_domain)
-                print(f"   ✅ Extracted sources from URLs")
+                print(f"   Extracted sources from URLs")
                 
                 # Show unique sources found
                 unique_sources = df_english['source'].value_counts()
