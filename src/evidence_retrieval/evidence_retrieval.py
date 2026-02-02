@@ -8,8 +8,9 @@ from urllib.parse import urlparse
 from .groq_query_builder import GroqQueryBuilder
 
 class AdvancedEvidenceRetriever:
-    def __init__(self, serpapi_key: str, gemini_key: str = None, groq_key: str = None):
-        self.serpapi_key = serpapi_key
+    def __init__(self, serper_key: str, gemini_key: str = None, groq_key: str = None):
+        # self.serpapi_key = serpapi_key
+        self.serper_key = serper_key
         self.base_url = "https://serpapi.com/search"
 
         # Initialize query builders in order of preference
@@ -46,13 +47,118 @@ class AdvancedEvidenceRetriever:
             self.nlp = None
         
         # Source diversity categories
+        # self.source_categories = {
+        #     'government': ['dailynews.lk', 'news.lk', 'parliament.lk'],
+        #     'opposition': ['themorning.lk', 'island.lk', 'economynext.com'],
+        #     'neutral': ['adaderana.lk', 'newsfirst.lk', 'ft.lk', 'dailymirror.lk'],
+        #     'international': ['worldbank.org', 'imf.org', 'reuters.com', 'bbc.com'],
+        #     'fact_checkers': ['factcheck.org', 'politifact.com', 'snopes.com']
+        # }
+
         self.source_categories = {
-            'government': ['dailynews.lk', 'news.lk', 'parliament.lk'],
-            'opposition': ['themorning.lk', 'island.lk', 'economynext.com'],
-            'neutral': ['adaderana.lk', 'newsfirst.lk', 'ft.lk', 'dailymirror.lk'],
-            'international': ['worldbank.org', 'imf.org', 'reuters.com', 'bbc.com'],
-            'fact_checkers': ['factcheck.org', 'politifact.com', 'snopes.com']
+            # TIER 1: Official/Authority sources (highest priority)
+            'official_primary': [
+                'parliament.lk',           # Parliament Hansards
+                'president.gov.lk',        # President Media Division
+                'pmoffice.gov.lk',        # PM Office
+                'cbsl.lk',                # Central Bank of Sri Lanka
+                'statistics.gov.lk'        # Department of Statistics
+            ],
+            
+            # TIER 2: Fact-checkers and verification sources
+            'fact_checkers': [
+                'factcheck.lk',           # Local fact-checker
+                'factcrescendo.com',      # Regional fact-checker
+                'boomlive.in',           # Regional verification
+                'factly.in'              # Regional verification
+            ],
+            
+            # TIER 3: Quality Sri Lankan news sources
+            'sri_lankan_news': [
+                'dailymirror.lk',
+                'economynext.com', 
+                'island.lk',
+                'newsfirst.lk',
+                'adaderana.lk',
+                'ft.lk',
+                'themorning.lk',
+                'sundayobserver.lk'
+            ],
+
+            # TIER 4: Government information sources
+            'government': [
+                'dailynews.lk', 
+                'news.lk',
+                'agrimin.gov.lk',
+                'treasury.gov.lk'
+            ],
+            
+            # TIER 5: International sources (backup)
+            'international': [
+                'worldbank.org', 
+                'imf.org', 
+                'reuters.com', 
+                'bbc.com',
+                'ap.org'
+            ]
         }
+
+        # Priority weights for scoring
+        self.priority_weights = {
+            'official_primary': 3.0,    # Highest priority
+            'fact_checkers': 2.5,      # Very high priority  
+            'sri_lankan_news': 2.0,    # High priority
+            'government': 1.5,         # Medium priority
+            'international': 1.0,      # Normal priority
+            'unknown': 0.5            # Lowest priority
+        }
+
+    def _build_priority_queries(self, claim: str, entities: Dict) -> List[str]:
+        """Build queries that prioritize official and quality sources"""
+        
+        priority_queries = []
+        base_keywords = self._extract_key_terms(claim)
+        
+        # TIER 1: Target official sources first
+        official_queries = [
+            f'site:parliament.lk "{" ".join(base_keywords[:3])}"',
+            f'site:president.gov.lk {" ".join(base_keywords[:2])}',
+            f'site:cbsl.lk {" ".join(base_keywords[:2])}',
+            f'site:pmoffice.gov.lk {" ".join(base_keywords[:2])}'
+        ]
+        
+        # TIER 2: Target fact-checkers
+        factcheck_queries = [
+            f'site:factcheck.lk "{" ".join(base_keywords[:2])}"',
+            f'fact check verify "{" ".join(base_keywords[:3])}" Sri Lanka'
+        ]
+        
+        # TIER 3: Target quality Sri Lankan news
+        news_queries = [
+            f'site:dailymirror.lk OR site:economynext.com OR site:island.lk {" ".join(base_keywords[:2])}',
+            f'site:newsfirst.lk OR site:adaderana.lk OR site:ft.lk {" ".join(base_keywords[:2])}'
+        ]
+        
+        # TIER 4: General search without site restrictions
+        general_queries = [
+            f'"{claim}" Sri Lanka',
+            f'{" ".join(base_keywords[:3])} Sri Lanka news'
+        ]
+        
+        # Combine in priority order
+        priority_queries.extend(official_queries[:2])      # 2 official queries
+        priority_queries.extend(factcheck_queries[:1])     # 1 fact-check query  
+        priority_queries.extend(news_queries[:2])          # 2 news queries
+        priority_queries.extend(general_queries[:2])       # 2 general queries
+        
+        return priority_queries[:7]  # Return top 7 priority queries
+
+    def _extract_key_terms(self, claim: str) -> List[str]:
+        """Extract key terms for query building"""
+        # Remove common stop words and extract meaningful terms
+        stop_words = {'said', 'that', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'has', 'have'}
+        words = [word for word in claim.split() if word.lower() not in stop_words and len(word) > 2]
+        return words[:5]  # Return top 5 key terms
     
     def extract_claim_entities(self, claim: str) -> Dict[str, List[str]]:
         """Extract key entities from the claim for targeted search"""
@@ -197,6 +303,132 @@ class AdvancedEvidenceRetriever:
         diverse_results = self._ensure_source_diversity(all_results, num_results)
         
         return diverse_results[:num_results]
+
+    # def retrieve_diverse_evidence_livefc(
+    #     self, 
+    #     claim: str, 
+    #     num_results: int = 10,
+    #     use_decomposition: bool = True
+    # ) -> List[Dict]:
+    #     """LiveFC-style evidence retrieval with claim decomposition"""
+        
+    #     if use_decomposition:
+    #         # Step 1: Decompose claim into verification questions
+    #         from .claim_decomposer import ClaimDecomposer
+    #         from .multi_source_retriever import MultiSourceRetriever
+    #         from .evidence_ranker import EvidenceRanker
+            
+    #         decomposer = ClaimDecomposer(self.query_builder.client.api_key)
+    #         questions = decomposer.decompose_claim(claim, num_questions=5)
+            
+    #         print(f"   🔍 Decomposed into {len(questions)} verification questions")
+    #         for i, q in enumerate(questions, 1):
+    #             print(f"      Q{i}: {q}")
+            
+    #         # Step 2: Multi-source retrieval
+    #         multi_retriever = MultiSourceRetriever(self.serpapi_key)
+    #         all_evidence = multi_retriever.retrieve_from_multiple_sources(questions, max_per_source=8)
+            
+    #         print(f"   📋 Retrieved {len(all_evidence)} total pieces from multiple sources")
+            
+    #     else:
+    #         # Fallback to original method
+    #         return self.retrieve_diverse_evidence(claim, num_results)
+        
+    #     # Step 3: Advanced deduplication
+    #     unique_evidence = self._advanced_deduplication(all_evidence)
+        
+    #     # Step 4: Cross-encoder ranking
+    #     ranker = EvidenceRanker()
+    #     ranked_evidence = ranker.rank_evidence(claim, unique_evidence, top_k=num_results * 2)
+        
+    #     # Step 5: Apply source diversity
+    #     diverse_results = self._ensure_source_diversity(ranked_evidence, num_results)
+        
+    #     return diverse_results[:num_results]
+
+    def retrieve_diverse_evidence_livefc(
+        self, 
+        claim: str, 
+        num_results: int = 10,
+        use_decomposition: bool = True
+    ) -> List[Dict]:
+        """LiveFC-style retrieval with priority source targeting"""
+        
+        if use_decomposition:
+            from .claim_decomposer import ClaimDecomposer
+            from .multi_source_retriever import MultiSourceRetriever
+            from .evidence_ranker import EvidenceRanker
+            
+            decomposer = ClaimDecomposer(self.query_builder.client.api_key)
+            questions = decomposer.decompose_claim(claim, num_questions=4)  # Reduce to 4 since we're adding original
+            
+            print(f"   🔍 Decomposed into {len(questions)} verification questions")
+            for i, q in enumerate(questions, 1):
+                print(f"      Q{i}: {q}")
+            
+            # Step 2: Priority-aware multi-source retrieval WITH original claim
+            multi_retriever = MultiSourceRetriever(self.serper_key)
+            all_evidence = multi_retriever.retrieve_from_multiple_sources_priority(
+                questions, 
+                max_per_source=6,  # Slightly reduced since we're adding original claim searches
+                original_claim=claim  # ADD THIS - pass the original claim
+            )
+            
+            print(f"   📋 Retrieved {len(all_evidence)} total pieces from priority sources")
+            
+        else:
+            return self.retrieve_diverse_evidence(claim, num_results)
+        
+        # Step 3: Advanced deduplication
+        unique_evidence = self._advanced_deduplication(all_evidence)
+        
+        # Step 4: Priority-aware cross-encoder ranking
+        ranker = EvidenceRanker()
+        ranked_evidence = ranker.rank_evidence_with_priority(claim, unique_evidence, top_k=num_results * 2)
+        
+        # Step 5: Priority-aware source selection
+        priority_results = self._ensure_priority_source_diversity(ranked_evidence, num_results)
+        
+        return priority_results[:num_results]
+    
+    def _ensure_priority_source_diversity(self, results: List[Dict], target_count: int) -> List[Dict]:
+        """Ensure priority sources are included first"""
+        
+        selected = []
+        
+        # STEP 1: Guarantee at least 1 from each priority tier (if available)
+        tier_counts = {'official_primary': 0, 'fact_checkers': 0, 'sri_lankan_news': 0}
+        
+        # First pass: Take top result from each priority tier
+        for tier in ['official_primary', 'fact_checkers', 'sri_lankan_news']:
+            tier_results = [r for r in results if r.get('priority_tier') == tier]
+            if tier_results and len(selected) < target_count:
+                selected.append(tier_results[0])  # Take best from this tier
+                tier_counts[tier] += 1
+        
+        # STEP 2: Fill remaining slots with best overall scores
+        remaining_slots = target_count - len(selected)
+        for result in results:
+            if result not in selected and len(selected) < target_count:
+                tier = result.get('priority_tier', 'unknown')
+                
+                # Limit per tier to maintain diversity
+                if tier in tier_counts and tier_counts[tier] < 2:  # Max 2 per priority tier
+                    selected.append(result)
+                    tier_counts[tier] = tier_counts.get(tier, 0) + 1
+                elif tier not in tier_counts:  # Unknown/other sources
+                    selected.append(result)
+        
+        # Print source breakdown
+        tier_breakdown = {}
+        for result in selected:
+            tier = result.get('priority_tier', 'unknown')
+            tier_breakdown[tier] = tier_breakdown.get(tier, 0) + 1
+        
+        print(f"   📊 Priority source distribution: {tier_breakdown}")
+        
+        return selected
     
     def _search_single_query(self, query: str, max_results: int = 10) -> List[Dict]:
         """Execute a single search query"""
@@ -307,6 +539,36 @@ class AdvancedEvidenceRetriever:
                     alignment_counts[alignment] += 1
         
         return selected
+
+    def _advanced_deduplication(self, evidence_list: List[Dict]) -> List[Dict]:
+        """Advanced deduplication using content similarity"""
+        from difflib import SequenceMatcher
+        
+        unique_evidence = []
+        seen_content = []
+        
+        for evidence in evidence_list:
+            content = f"{evidence.get('title', '')} {evidence.get('snippet', '')}"
+            
+            # Check URL deduplication
+            url = evidence.get('link', '')
+            if any(url == seen.get('link', '') for seen in unique_evidence):
+                continue
+            
+            # Check content similarity
+            is_duplicate = False
+            for seen_content_text in seen_content:
+                similarity = SequenceMatcher(None, content.lower(), seen_content_text.lower()).ratio()
+                if similarity > 0.8:  # 80% similarity threshold
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                unique_evidence.append(evidence)
+                seen_content.append(content)
+        
+        print(f"         🔄 Deduplication: {len(evidence_list)} → {len(unique_evidence)} unique pieces")
+        return unique_evidence
     
     def _extract_domain(self, url: str) -> str:
         """Extract domain from URL"""
