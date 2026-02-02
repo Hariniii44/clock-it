@@ -16,6 +16,8 @@ class Config:
     # ============================================
     SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 
+    SERPER_KEY = os.getenv('SERPER_API_KEY')
+
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -122,6 +124,9 @@ class Config:
         """
         errors = []
         
+        if not cls.SERPER_KEY:
+            errors.append("SERPER_KEY not found in environment variables")
+        
         # Check API key
         if not cls.SERPAPI_KEY:
             errors.append("SERPAPI_KEY not found in environment variables")
@@ -132,7 +137,7 @@ class Config:
         
         if errors:
             error_msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
-            error_msg += "\n\nPlease check your .env file and ensure SERPAPI_KEY is set correctly."
+            error_msg += "\n\nPlease check your .env file and ensure SERPAPI_KEY and SERPER_KEY are set correctly."
             raise ValueError(error_msg)
         
         return True
