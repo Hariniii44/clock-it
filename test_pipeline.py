@@ -24,7 +24,7 @@ if __name__ == "__main__":
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
     
     retriever = AdvancedEvidenceRetriever(
-        serpapi_key=Config.SERPAPI_KEY, 
+        serper_key=Config.SERPER_KEY, 
         groq_key=Config.GROQ_API_KEY
     )
     print("Evidence Retriever initialized")
@@ -36,10 +36,13 @@ if __name__ == "__main__":
     
     # Step 3: Test with sample claim
     print("\n3. Testing with sample claim...")
+
     
-    # claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
+    claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
     
-    claim = "President Anura Kumara Dissanayake said that giving rice to animals is a reason for the country's rice shortage."
+    # claim = "President Anura Kumara Dissanayake said that giving rice to animals is a reason for the country's rice shortage."
+
+    # claim = "Sri Lankan governmennt has approximately allocated LKR 30 billion out of the allocations approved by the previous budget [That money] can be spent without the parliament’s approval."
 
     # claim = "President Anura Kumara Dissanayake announced new measures to fight corruption in government ministries."
 
@@ -58,11 +61,17 @@ if __name__ == "__main__":
     
     # Retrieve evidence
     print(f"\n   Retrieving {Config.NUM_EVIDENCE_SOURCES} evidence sources...")
-    evidence = retriever.retrieve_diverse_evidence(
+    # evidence = retriever.retrieve_diverse_evidence(
+    #     claim, 
+    #     num_results=Config.NUM_EVIDENCE_SOURCES,
+    #     include_fact_checkers=True,
+    #     use_ai_filtering=True
+    # )
+
+    evidence = retriever.retrieve_diverse_evidence_livefc(
         claim, 
         num_results=Config.NUM_EVIDENCE_SOURCES,
-        include_fact_checkers=True,
-        use_ai_filtering=True
+        use_decomposition=True
     )
 
     # Show retrieval analysis
