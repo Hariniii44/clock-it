@@ -1,228 +1,3 @@
-# import numpy as np
-# from typing import List, Dict
-
-# class EvidenceWeighter:
-#     def __init__(self):
-#         """
-#         calculate bias-claim alignmenet 
-#         dynamic evidence weighting
-#         """
-#         pass
-
-#     def calculate_bias_claim_alignment(self, claim: str, bias_analysis: Dict) -> float:
-#         """
-#         Determine if source bias is contextually relevant
-#         Logic:
-#         - If claim is about government AND source is pro/anti-government
-#           High alignment (bias is relevant)
-#         - If claim is neutral fact AND source is biased
-#           Low alignment (bias less relevant)
-#         """
-
-#         # Simple keyword-based approach for demonstration
-#         government_keywords = ["government", "administration", "policy", "minister", "president", "cabinet", "parliament"]
-
-#         claim_lower = claim.lower() 
-#         is_political_claim = any(kw in claim_lower for kw in government_keywords)
-
-#         political_bias = bias_analysis["political_stance"]["stance_score"]
-#         emotional_bias = abs(bias_analysis["emotional_tone"]["emotion_score"])
-#         framing_bias = abs(bias_analysis["framing_bias"]["framing_score"])
-        
-#         if is_political_claim:
-#             alignment = (political_bias + emotional_bias + framing_bias) / 3
-#         else:
-#             alignment = (political_bias + emotional_bias + framing_bias) / 6  # downweight for non-political claims
-        
-#         return min(alignment, 1.0)
-    
-#     def calculate_evidence_weight(self, verification_confidence: float, bias_alignment: float, base_credibility: float = 0.7) -> float:
-#         """
-#         Dynamic evidence weighting
-
-#         formula:
-#         weight = base_credibility * verification_confidence * (1 - bias_penalty)
-#         where bias_penalty = bias_alignment * 0.5
-#         """
-
-#         bias_penalty = bias_alignment * 0.5
-#         weight = base_credibility * verification_confidence * (1 - bias_penalty)
-
-#         print(f"  Debug: conf={verification_confidence:.3f}, bias_align={bias_alignment:.3f}, penalty={bias_penalty:.3f}, weight={weight:.3f}")
-
-#         return max(weight, 0.1)  # Ensure minimum weight
-    
-#     def weight_all_evidence(self, claim: str, evidence_list: List[Dict], verification_results: List[Dict], bias_analyses: List[Dict]) -> List[Dict]:
-#         """
-#         Weight all evidence pieces
-#         Returns list of evidence with added 'weight' field
-#         """
-
-#         weighted_evidence = []
-        
-#         for evidence, verification, bias in zip(
-#             evidence_list, verification_results, bias_analyses
-#         ):
-#             alignment = self.calculate_bias_claim_alignment(claim, bias) #calculating alignment
-
-#             weight = self.calculate_evidence_weight(
-#                 verification_confidence=verification["confidence"],
-#                 bias_alignment=alignment
-#             )
-
-#             weighted_evidence.append({
-#                 "evidence": evidence,
-#                 "verification": verification,
-#                 "bias_analysis": bias,
-#                 "bias_alignment": alignment,
-#                 "weight": weight,
-#                 "explanation": self._generate_weight_explanation(
-#                     alignment, weight, bias
-#                 )
-#             })
-
-#         return weighted_evidence
-        
-#     def _generate_weight_explanation(self, alignment: float, weight: float, bias: Dict) -> str:
-#         """
-#         explain the assigned weight
-#         """
-
-#         political = bias["political_stance"]["political_stance"]
-#         emotion = bias["emotional_tone"]["emotion"]
-
-#         if alignment > 0.6:
-#             return (
-#                 f"Source shows {political} bias with {emotion} tone. "
-#                 f"Weight reduced to {weight:.2f} due to high bias-claim alignment."
-#             )
-#         elif alignment > 0.3:
-#             return (
-#                 f"Source shows moderate {political} bias. "
-#                 f"Weight adjusted to {weight:.2f}."
-#             )
-#         else:
-#             return f"Source bias is low or not contextually relevant. Weight: {weight:.2f}"
-
-# class VerdictGenerator:
-#     def __init__(self):
-#         """FR06: Generate graded verdicts"""
-#         pass
-    
-#     def generate_verdict(
-#         self,
-#         weighted_evidence: List[Dict]
-#     ) -> Dict:
-#         """
-#         FR06: Generate graded verdict (SUPPORTED/REFUTED/UNCERTAIN/CONFLICTING)
-#         FR07: Provide confidence scores with uncertainty decomposition
-#         """
-#         # Aggregate weighted votes
-#         support_score = 0.0
-#         refute_score = 0.0
-#         neutral_score = 0.0
-        
-#         for item in weighted_evidence:
-#             label = item["verification"]["label"]
-#             weight = item["weight"]
-            
-#             if label == "SUPPORTED":
-#                 support_score += weight
-#             elif label == "REFUTED":
-#                 refute_score += weight
-#             else:
-#                 neutral_score += weight
-        
-#         total = support_score + refute_score + neutral_score
-        
-#         if total == 0:
-#             return {
-#                 "verdict": "UNCERTAIN",
-#                 "confidence": 0.0,
-#                 "explanation": "No valid evidence found"
-#             }
-        
-#         # Normalize scores
-#         support_pct = support_score / total
-#         refute_pct = refute_score / total
-#         neutral_pct = neutral_score / total
-        
-#         # Determine verdict
-#         max_score = max(support_pct, refute_pct, neutral_pct)
-        
-#         # Threshold for conflicting
-#         if abs(support_pct - refute_pct) < 0.2 and min(support_pct, refute_pct) > 0.3:
-#             verdict = "CONFLICTING"
-#             confidence = 1 - abs(support_pct - refute_pct)  # Lower when more conflict
-#         elif max_score == support_pct and support_pct > 0.5:
-#             verdict = "SUPPORTED"
-#             confidence = support_pct
-#         elif max_score == refute_pct and refute_pct > 0.5:
-#             verdict = "REFUTED"
-#             confidence = refute_pct
-#         else:
-#             verdict = "UNCERTAIN"
-#             confidence = max_score
-
-#         uncertainty = self._decompose_uncertainty(weighted_evidence)
-        
-#         return {
-#             "verdict": verdict,
-#             "confidence": confidence,
-#             "support_score": support_pct,
-#             "refute_score": refute_pct,
-#             "neutral_score": neutral_pct,
-#             "uncertainty_decomposition": uncertainty
-#         }
-    
-#     def _decompose_uncertainty(self, weighted_evidence: List[Dict]) -> Dict:
-#         """
-#         Decompose uncertainty into components
-#         - Epistemic: Model uncertainty (variance in confidence scores)
-#         - Aleatoric: Data uncertainty (insufficient evidence)
-#         - Bias-induced: Disagreement due to source bias
-#         """
-#         confidences = [item["verification"]["confidence"] for item in weighted_evidence]
-#         alignments = [item["bias_alignment"] for item in weighted_evidence]
-#         labels = [item["verification"]["label"] for item in weighted_evidence]
-        
-#         # Epistemic uncertainty: variance in model confidence
-#         epistemic = float(np.std(confidences)) if confidences else 1.0
-        
-#         # Aleatoric uncertainty: lack of evidence
-#         num_sources = len(weighted_evidence)
-#         ideal_sources = 5
-#         aleatoric = max(0.0, (ideal_sources - num_sources) / ideal_sources)
-        
-#         # Bias-induced uncertainty: high bias + disagreement
-#         high_bias_count = sum(1 for a in alignments if a > 0.5)
-#         label_diversity = len(set(labels)) / 3 if labels else 1.0  # 3 possible labels
-#         bias_induced = (high_bias_count / len(alignments)) * label_diversity if alignments else 0.0
-        
-
-#         return {
-#             "epistemic": round(epistemic, 3),
-#             "aleatoric": round(aleatoric, 3),
-#             "bias_induced": round(bias_induced, 3),
-#             "explanation": self._explain_uncertainty(epistemic, aleatoric, bias_induced)
-#         }
-    
-#     def _explain_uncertainty(self, epistemic, aleatoric, bias_induced) -> str:
-#         """Generate human-readable uncertainty explanation"""
-#         explanations = []
-        
-#         if epistemic > 0.3:
-#             explanations.append("Model confidence varies across sources")
-#         if aleatoric > 0.4:
-#             explanations.append("Limited evidence available")
-#         if bias_induced > 0.4:
-#             explanations.append("Sources with different biases disagree")
-        
-#         if not explanations:
-#             return "Uncertainty is low across all factors"
-        
-#         return "; ".join(explanations)
-
 import numpy as np
 from typing import List, Dict
 import json
@@ -325,10 +100,74 @@ class EvidenceWeighter:
         
         return min(alignment, 1.0)
     
-    def calculate_evidence_weight(self, verification_confidence: float, bias_alignment: float, 
-                                 base_credibility: float = 0.7, evidence_url: str = None) -> float:
+    def _get_authority_weight(self, evidence_url: str) -> float:
         """
-        Enhanced evidence weighting with source credibility from bias profiles
+        Calculate authority weight based on source type
+        """
+        if not evidence_url:
+            return 1.0
+            
+        domain = self._extract_domain(evidence_url)
+        
+        # Official/Government sources get highest authority
+        official_domains = ['parliament.lk', 'presidentsoffice.gov.lk', 'president.gov.lk', 'pmoffice.gov.lk', 
+                           'cbsl.lk', 'statistics.gov.lk', 'mfa.gov.lk']
+        if any(d in domain for d in official_domains):
+            return 2.5  # Even higher weight for official sources on factual claims
+            
+        # Fact-checkers get high authority
+        fact_checker_domains = ['factcheck.lk', 'factcrescendo.com', 'boomlive.in', 'factly.in']
+        if any(d in domain for d in fact_checker_domains):
+            return 1.8
+            
+        # Quality news sources
+        quality_news = ['dailymirror.lk', 'economynext.com', 'island.lk', 'newsfirst.lk', 'adaderana.lk', 'ft.lk']
+        if any(d in domain for d in quality_news):
+            return 1.3
+            
+        # International sources for Sri Lankan news
+        international = ['reuters.com', 'bbc.com', 'cnn.com', 'aljazeera.com']
+        if any(d in domain for d in international):
+            return 1.2
+            
+        return 1.0  # Standard weight
+    
+    def _get_recency_weight(self, evidence: Dict) -> float:
+        """
+        Calculate recency weight - newer sources get higher weight for factual claims
+        """
+        try:
+            # Try to extract date from evidence metadata
+            date_str = evidence.get('date', '')
+            if date_str:
+                # Parse date and calculate recency score
+                from datetime import datetime, timedelta
+                try:
+                    evidence_date = datetime.strptime(date_str[:10], '%Y-%m-%d')
+                    days_old = (datetime.now() - evidence_date).days
+                    
+                    # Heavy penalty for very old sources on factual claims
+                    if days_old > 365:  # Older than 1 year
+                        return 0.3
+                    elif days_old > 180:  # Older than 6 months
+                        return 0.6
+                    elif days_old > 90:   # Older than 3 months
+                        return 0.8
+                    else:  # Recent
+                        return 1.0
+                except:
+                    pass
+            
+            # If no date available, assume moderate recency
+            return 0.7
+            
+        except:
+            return 0.7
+
+    def calculate_evidence_weight(self, verification_confidence: float, bias_alignment: float, 
+                                 base_credibility: float = 0.7, evidence_url: str = None, evidence: Dict = None) -> float:
+        """
+        Enhanced evidence weighting with source credibility, authority, and recency
         """
         # Adjust base credibility based on source profile if available
         domain = self._extract_domain(evidence_url) if evidence_url else None
@@ -338,11 +177,17 @@ class EvidenceWeighter:
             profile_credibility = 0.5 + (profile["confidence"] * 0.3)  # Range: 0.5-0.8
             base_credibility = max(base_credibility, profile_credibility)
 
+        # NEW: Add authority and recency weights for factual claims
+        authority_weight = self._get_authority_weight(evidence_url)
+        recency_weight = self._get_recency_weight(evidence) if evidence else 1.0
+        
         # Original bias penalty calculation
         bias_penalty = bias_alignment * 0.5
-        weight = base_credibility * verification_confidence * (1 - bias_penalty)
+        
+        # Enhanced weight calculation with authority and recency
+        weight = base_credibility * verification_confidence * (1 - bias_penalty) * authority_weight * recency_weight
 
-        print(f"  Debug: conf={verification_confidence:.3f}, bias_align={bias_alignment:.3f}, penalty={bias_penalty:.3f}, weight={weight:.3f}")
+        print(f"  Debug: conf={verification_confidence:.3f}, bias_align={bias_alignment:.3f}, authority={authority_weight:.1f}, recency={recency_weight:.1f}, weight={weight:.3f}")
 
         return max(weight, 0.1)  # Ensure minimum weight
     
@@ -358,11 +203,12 @@ class EvidenceWeighter:
             # Calculate alignment with URL context
             alignment = self.calculate_bias_claim_alignment(claim, bias, evidence_url)
 
-            # Calculate weight with URL context
+            # Calculate weight with URL context, authority, and recency
             weight = self.calculate_evidence_weight(
                 verification_confidence=verification["confidence"],
                 bias_alignment=alignment,
-                evidence_url=evidence_url
+                evidence_url=evidence_url,
+                evidence=evidence
             )
 
             # Enhanced explanation generation
@@ -449,9 +295,31 @@ class VerdictGenerator:
         """Enhanced verdict generation with bias-aware confidence scoring"""
         pass
     
+    def _is_factual_claim(self, weighted_evidence: List[Dict]) -> bool:
+        """
+        Detect if this is a factual claim that shouldn't be marked as conflicting
+        """
+        # Create EvidenceWeighter instance to access authority weight method
+        weighter = EvidenceWeighter()
+        
+        # Check for high-authority sources
+        authority_weights = []
+        for item in weighted_evidence:
+            evidence_url = item["evidence"].get("link", "")
+            auth_weight = weighter._get_authority_weight(evidence_url)
+            authority_weights.append(auth_weight)
+        
+        # If we have official sources (weight > 1.5), treat as factual
+        has_official_sources = any(w > 1.5 for w in authority_weights)
+        
+        # If majority of sources are high-authority, treat as factual
+        high_authority_ratio = sum(1 for w in authority_weights if w > 1.2) / len(authority_weights)
+        
+        return has_official_sources or high_authority_ratio > 0.6
+
     def generate_verdict(self, weighted_evidence: List[Dict]) -> Dict:
         """
-        Enhanced verdict generation considering source diversity and bias distribution
+        Enhanced verdict generation considering source diversity, authority, and factual claim detection
         """
         if not weighted_evidence:
             return {
@@ -506,26 +374,64 @@ class VerdictGenerator:
         # Determine verdict
         max_score = max(support_pct, refute_pct, neutral_pct)
         
+        # NEW: Check if this is a factual claim
+        is_factual = self._is_factual_claim(weighted_evidence)
+        
         # Enhanced conflict detection considering bias
         bias_alignments = [item["bias_alignment"] for item in weighted_evidence]
         high_bias_sources = sum(1 for alignment in bias_alignments if alignment > 0.5)
         bias_conflict_factor = high_bias_sources / len(weighted_evidence) if weighted_evidence else 0
         
-        # Adjust thresholds based on bias conflict
-        conflict_threshold = 0.2 + (bias_conflict_factor * 0.1)  # Higher threshold if biased sources
-        
-        if abs(support_pct - refute_pct) < conflict_threshold and min(support_pct, refute_pct) > 0.3:
-            verdict = "CONFLICTING"
-            confidence = (1 - abs(support_pct - refute_pct)) + diversity_boost
-        elif max_score == support_pct and support_pct > 0.5:
-            verdict = "SUPPORTED"
-            confidence = support_pct + diversity_boost
-        elif max_score == refute_pct and refute_pct > 0.5:
-            verdict = "REFUTED"
-            confidence = refute_pct + diversity_boost
+        # Adjust thresholds based on bias conflict and factual nature
+        if is_factual:
+            # For factual claims, require stronger evidence for "conflicting" verdict
+            conflict_threshold = 0.4 + (bias_conflict_factor * 0.1)
+            min_opposing_threshold = 0.4  # Need significant opposing evidence
         else:
-            verdict = "UNCERTAIN"
-            confidence = max_score + diversity_boost
+            # For opinion/subjective claims, use original thresholds
+            conflict_threshold = 0.2 + (bias_conflict_factor * 0.1)
+            min_opposing_threshold = 0.3
+        
+        # Enhanced verdict logic with better factual claim handling
+        if is_factual:
+            # For factual claims, prioritize official sources and require stronger evidence for conflicts
+            # Check if we have strong official support
+            official_support_weight = 0
+            for item in weighted_evidence:
+                if item["verification"]["label"] == "SUPPORTED":
+                    domain = weighter._extract_domain(item["evidence"].get("link", ""))
+                    auth_weight = weighter._get_authority_weight(item["evidence"].get("link", ""))
+                    if auth_weight > 2.0:  # Official sources
+                        official_support_weight += item["weight"]
+            
+            # If official sources support the claim strongly, treat as supported
+            if official_support_weight > 0.5 and support_pct > refute_pct:
+                verdict = "SUPPORTED" 
+                confidence = min(0.8 + (official_support_weight - 0.5) * 0.4, 1.0)
+            elif support_pct > 0.6:
+                verdict = "SUPPORTED"
+                confidence = support_pct + diversity_boost
+            elif refute_pct > 0.6:
+                verdict = "REFUTED"
+                confidence = refute_pct + diversity_boost
+            else:
+                verdict = "UNCERTAIN"
+                confidence = max_score + diversity_boost
+        else:
+            # Original logic for opinion/subjective claims
+            if (abs(support_pct - refute_pct) < conflict_threshold and 
+                min(support_pct, refute_pct) > min_opposing_threshold):
+                verdict = "CONFLICTING"
+                confidence = (1 - abs(support_pct - refute_pct)) + diversity_boost
+            elif max_score == support_pct and support_pct > 0.4:
+                verdict = "SUPPORTED"
+                confidence = support_pct + diversity_boost
+            elif max_score == refute_pct and refute_pct > 0.4:
+                verdict = "REFUTED"
+                confidence = refute_pct + diversity_boost
+            else:
+                verdict = "UNCERTAIN"
+                confidence = max_score + diversity_boost
 
         confidence = min(confidence, 1.0)  # Cap at 100%
         
@@ -538,6 +444,7 @@ class VerdictGenerator:
             "refute_score": refute_pct,
             "neutral_score": neutral_pct,
             "diversity_score": diversity_score,
+            "is_factual_claim": is_factual,
             "uncertainty_decomposition": uncertainty
         }
     
