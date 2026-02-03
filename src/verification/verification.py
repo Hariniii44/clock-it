@@ -50,10 +50,6 @@ class ClaimVerifier:
         Verify claim against evidence using NLI
         Returns: {label: str, confidence: float}
         """
-        # Truncate to model's max length
-        # text = f"{claim} [SEP] {evidence}"[:512]
-        
-        # result = self.nli_model(text)[0]
 
         nli_input = f"{evidence} </s> {claim}"
 
