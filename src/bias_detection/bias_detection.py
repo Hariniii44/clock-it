@@ -115,18 +115,11 @@ class BiasDetector:
             else:
                 emotion = 'neutral'
                 emotion_score = 0.0
-            
-            # Simple political stance detection based on keywords
-            political_stance, stance_score = self._detect_political_stance(text)
-            
+                        
             # Simple framing analysis
             framing_type, framing_score = self._analyze_framing(text)
             
             return {
-                "political_stance": {
-                    "political_stance": political_stance,
-                    "stance_score": stance_score
-                },
                 "emotional_tone": {
                     "emotion": emotion,
                     "emotion_score": emotion_score
@@ -143,26 +136,27 @@ class BiasDetector:
     
     def _combine_bias_scores(self, source_profile: Dict, text_analysis: Dict) -> Dict:
         """Combine source-level and text-level bias scores"""
+        # Get text-level bias scores from available analysis
+        text_emotional = abs(text_analysis["emotional_tone"]["emotion_score"])
+        text_framing = text_analysis["framing_bias"]["framing_score"]
+        
         if not source_profile.get("has_profile", False):
             # No source profile, use text analysis only
+            text_overall_bias = (text_emotional + text_framing) / 2
             return {
                 "method": "text_only",
-                "political_bias": text_analysis["political_stance"]["stance_score"],
-                "emotional_bias": abs(text_analysis["emotional_tone"]["emotion_score"]),
-                "overall_bias": (
-                    text_analysis["political_stance"]["stance_score"] + 
-                    abs(text_analysis["emotional_tone"]["emotion_score"])
-                ) / 2
+                "emotional_bias": text_emotional,
+                "framing_bias": text_framing,
+                "overall_bias": text_overall_bias
             }
         
         # Combine source profile with text analysis
         source_bias = abs(source_profile["bias_score"]) / 50  # Normalize from -50:+50 to 0:1
-        text_political = text_analysis["political_stance"]["stance_score"]
-        text_emotional = abs(text_analysis["emotional_tone"]["emotion_score"])
         
-        # Weighted combination (source profile gets more weight)
-        combined_political = (0.7 * source_bias) + (0.3 * text_political)
-        combined_emotional = text_emotional  # Text-level only
+        # Weighted combination (source profile gets more weight for political bias)
+        combined_political = source_bias  # Use source profile for political stance
+        combined_emotional = text_emotional  # Use text analysis for emotional tone
+        combined_framing = text_framing  # Use text analysis for framing
         
         return {
             "method": "combined",
@@ -170,33 +164,10 @@ class BiasDetector:
             "source_interpretation": source_profile["bias_interpretation"],
             "political_bias": combined_political,
             "emotional_bias": combined_emotional,
-            "overall_bias": (combined_political + combined_emotional) / 2,
+            "framing_bias": combined_framing,
+            "overall_bias": (combined_political + combined_emotional + combined_framing) / 3,
             "confidence": source_profile["confidence"]
         }
-    
-    def _detect_political_stance(self, text: str) -> tuple:
-        """Simple keyword-based political stance detection"""
-        text_lower = text.lower()
-        
-        # Government/pro-government keywords
-        gov_keywords = ["government", "administration", "policy", "development", "progress", 
-                       "achievement", "success", "improvement"]
-        
-        # Opposition/critical keywords  
-        opp_keywords = ["opposition", "criticism", "failure", "corruption", "protest",
-                       "crisis", "problem", "scandal"]
-        
-        gov_count = sum(1 for kw in gov_keywords if kw in text_lower)
-        opp_count = sum(1 for kw in opp_keywords if kw in text_lower)
-        
-        if gov_count > opp_count:
-            stance_score = min(gov_count * 0.1, 1.0)
-            return "pro-government", stance_score
-        elif opp_count > gov_count:
-            stance_score = min(opp_count * 0.1, 1.0) 
-            return "opposition-leaning", stance_score
-        else:
-            return "unknown", 0.0
     
     def _analyze_framing(self, text: str) -> tuple:
         """Simple framing analysis"""
@@ -216,10 +187,6 @@ class BiasDetector:
     def _default_bias_analysis(self) -> Dict:
         """Default analysis when bias detection fails"""
         return {
-            "political_stance": {
-                "political_stance": "unknown",
-                "stance_score": 0.0
-            },
             "emotional_tone": {
                 "emotion": "neutral", 
                 "emotion_score": 0.0
