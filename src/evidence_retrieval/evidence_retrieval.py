@@ -418,4 +418,65 @@ class AdvancedEvidenceRetriever:
             return urlparse(url).netloc.lower()
         except:
             return url.lower()
+        
+
+    def retrieve_simple_serper(self, claim: str, num_results: int = 5) -> List[Dict]:
+        """
+        Simple direct Serper search
+        No priority tiers, no decomposition, just straight search
+        """
+        print(f"    Simple Serper search: {claim[:50]}...")
+        
+        import requests
+        import time
+        
+        # Rate limiting
+        time.sleep(1)
+        
+        # Direct search query - just the claim
+        query = claim
+        
+        url = "https://google.serper.dev/search"
+        payload = {
+            "q": query,
+            "num": num_results * 2,  # Get more to account for deduplication
+            "gl": "lk",  # Sri Lanka location
+            "hl": "en"   # English language
+        }
+        headers = {
+            "X-API-KEY": self.serper_key,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            print(f"       Response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"       Raw results keys: {list(data.keys())}")
+                
+                results = []
+                if "organic" in data:
+                    for item in data["organic"]:
+                        result = {
+                            "title": item.get("title", ""),
+                            "snippet": item.get("snippet", ""),
+                            "link": item.get("link", ""),
+                            "source": self._extract_domain(item.get("link", "")),
+                            "date": item.get("date", ""),
+                            "position": item.get("position", 0)
+                        }
+                        results.append(result)
+                        
+                print(f"      ✅ Extracted {len(results)} pieces")
+                return results[:num_results]  # Return only requested number
+                
+            else:
+                print(f"      ❌ Search failed: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"      ❌ Search error: {e}")
+            return []
 
