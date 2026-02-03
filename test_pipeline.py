@@ -50,6 +50,12 @@ if __name__ == "__main__":
         print("No claim entered.")
         exit(1)
 
+    # Ask user which method to use
+    print("\nChoose search method:")
+    print("1. Priority-based LiveFC (current sophisticated method)")
+    print("2. Simple Serper search (like playground)")
+    method = input("Enter 1 or 2: ").strip()
+
     
     # claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
     
@@ -74,6 +80,21 @@ if __name__ == "__main__":
     
     # Retrieve evidence
     print(f"\n   Retrieving {Config.NUM_EVIDENCE_SOURCES} evidence sources...")
+
+    if method == "2":
+        print("    Using SIMPLE SERPER search...")
+        evidence = retriever.retrieve_simple_serper(
+            claim, 
+            num_results=Config.NUM_EVIDENCE_SOURCES
+        )
+    else:
+        print("    Using PRIORITY-BASED LIVEFC search...")
+        evidence = retriever.retrieve_diverse_evidence_livefc(
+            claim, 
+            num_results=Config.NUM_EVIDENCE_SOURCES,
+            use_decomposition=True
+        )
+
     # evidence = retriever.retrieve_diverse_evidence(
     #     claim, 
     #     num_results=Config.NUM_EVIDENCE_SOURCES,
@@ -81,11 +102,11 @@ if __name__ == "__main__":
     #     use_ai_filtering=True
     # )
 
-    evidence = retriever.retrieve_diverse_evidence_livefc(
-        claim, 
-        num_results=Config.NUM_EVIDENCE_SOURCES,
-        use_decomposition=True
-    )
+    # evidence = retriever.retrieve_diverse_evidence_livefc(
+    #     claim, 
+    #     num_results=Config.NUM_EVIDENCE_SOURCES,
+    #     use_decomposition=True
+    # )
 
     # Show retrieval analysis
     print(f"   Found {len(evidence)} evidence sources")
