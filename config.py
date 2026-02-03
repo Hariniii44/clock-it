@@ -38,7 +38,11 @@ class Config:
     # ============================================
     # EVIDENCE RETRIEVAL SETTINGS
     # ============================================
-    NUM_EVIDENCE_SOURCES = 5  # Number of sources to retrieve per claim
+    NUM_EVIDENCE_SOURCES = 20  # Number of sources to retrieve per claim
+    MAX_RAW_RESULTS = 50    # Max raw results to fetch before filtering
+    MAX_PER_QUERY = 20      # Max results per individual query
+
+    COMPREHENSIVE_SEARCH = True  # NEW: Flag for comprehensive vs quick search
     SEARCH_REGION = "lk"      # Sri Lanka
     SEARCH_TYPE = "nws"       # News search
     
