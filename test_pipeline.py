@@ -10,7 +10,7 @@ if __name__ == "__main__":
     try:
         Config.validate()
         print("   ✅ Configuration valid")
-        Config.print_config()
+        # Config.print_config()
     except ValueError as e:
         print(f"   ❌ Configuration error: {e}")
         exit(1)
@@ -50,85 +50,13 @@ if __name__ == "__main__":
         print("No claim entered.")
         exit(1)
 
-    # Ask user which method to use
-    print("\nChoose search method:")
-    print("1. Priority-based LiveFC (current sophisticated method)")
-    print("2. Simple Serper search")
-    print("3. Comprehensive Serper search (50+ results, ranked)")
-    print("4. Hybrid: Decomposition + Serper (RECOMMENDED)")
-
-    method = input("Enter 1 or 2 or 3 or 4: ").strip()
-
-    # is giving rice to animals is a reason for the sri lanka's rice shortage?
-
-    # claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
-    
-    # claim = "President Anura Kumara Dissanayake said that giving rice to animals is a reason for the country's rice shortage."
-
-    # claim = "Sri Lankan governmennt has approximately allocated LKR 30 billion out of the allocations approved by the previous budget [That money] can be spent without the parliament’s approval."
-
-    # claim = "President Anura Kumara Dissanayake announced new measures to fight corruption in government ministries."
-
-    # claim = "The NPP government has successfully reduced corruption in Sri Lanka since taking power."
-
-    # # Economic policy claim (should get economynext.com)
-    # claim = "Sri Lanka's IMF bailout program has improved the country's economic stability."
-
-    # # Parliamentary claim (should get multiple Sri Lankan sources)
-    # claim = "The current Sri Lankan Parliament has more women MPs than the previous government."
-
-    # # Opposition criticism claim (should trigger bias differences)
-    # claim = "President Anura Kumara Dissanayake has fulfilled his election promises to fight corruption."
-
     print(f"\n   Analyzing claim: {claim}")
     
-    # Retrieve evidence
-    # print(f"\n   Retrieving {Config.NUM_EVIDENCE_SOURCES} evidence sources...")
-
-
-    if method == "4":
-        print("   🔍 Using HYBRID: Decomposition + Serper...")
-        evidence = retriever.retrieve_hybrid_serper_decomposition(
-            claim, 
-            num_results=20,
-            results_per_query=10
-        )
-
-        print(f"   📊 VERIFICATION: Retrieved {len(evidence)} evidence pieces") 
-
-    elif method == "3":
-        print("   🔍 Using COMPREHENSIVE SERPER search...")
-        evidence = retriever.retrieve_simple_serper(
-            claim, 
-            num_results=Config.NUM_EVIDENCE_SOURCES,
-            get_all=True
-        )
-    elif method == "2":
-        print("   🔍 Using SIMPLE SERPER search...")
-        evidence = retriever.retrieve_simple_serper(
-            claim, 
-            num_results=Config.NUM_EVIDENCE_SOURCES
-        )
-    else:
-        print("   🔍 Using PRIORITY-BASED LIVEFC search...")
-        evidence = retriever.retrieve_diverse_evidence_livefc(
-            claim, 
-            num_results=Config.NUM_EVIDENCE_SOURCES,
-            use_decomposition=True
-        )
-
-    # evidence = retriever.retrieve_diverse_evidence(
-    #     claim, 
-    #     num_results=Config.NUM_EVIDENCE_SOURCES,
-    #     include_fact_checkers=True,
-    #     use_ai_filtering=True
-    # )
-
-    # evidence = retriever.retrieve_diverse_evidence_livefc(
-    #     claim, 
-    #     num_results=Config.NUM_EVIDENCE_SOURCES,
-    #     use_decomposition=True
-    # )
+    evidence = retriever.retrieve_hybrid_serper_decomposition(
+        claim, 
+        num_results=20,
+        results_per_query=10
+    )
 
     # Show retrieval analysis
     print(f"   Found {len(evidence)} evidence sources")
@@ -226,8 +154,6 @@ if __name__ == "__main__":
 
         # Real-time analysis results
         print(f"       Real-time Analysis:")
-        # print(f"         Political Stance: {bias_analysis['political_stance']['political_stance']} "
-        #       f"(score: {bias_analysis['political_stance']['stance_score']:.1f})")
         print(f"         Emotional Tone: {bias_analysis['emotional_tone']['emotion']} "
               f"(score: {bias_analysis['emotional_tone']['emotion_score']:.2f})")
         print(f"         Framing: {bias_analysis['framing_bias']['framing_type']} "
@@ -271,6 +197,12 @@ if __name__ == "__main__":
     print()
     
     print(f"✅ FACT-CHECK VERDICT: {final_verdict['verdict']} ({final_verdict['confidence']:.0%} confidence)")
+    
+    # Show factual claim detection
+    if 'is_factual_claim' in final_verdict:
+        claim_type = "Factual Claim" if final_verdict['is_factual_claim'] else "Opinion/Subjective"
+        print(f"📊 Claim Type: {claim_type}")
+    
     print()
     
     print("▼ Detailed Analysis Available:")
@@ -284,6 +216,21 @@ if __name__ == "__main__":
     print("="*60)
     print("DETAILED ANALYSIS")
     print("="*60)
+
+    # Show enhanced evidence breakdown
+    print("\nEVIDENCE BREAKDOWN:")
+    print("-" * 40)
+    
+    for i, item in enumerate(weighted_evidence, 1):
+        evidence_url = item["evidence"].get("link", "")
+        domain = weighter._extract_domain(evidence_url) if evidence_url else "Unknown"
+        authority_weight = weighter._get_authority_weight(evidence_url)
+        
+        print(f"\n{i}. {item['evidence'].get('source', 'Unknown Source')}")
+        print(f"   Domain: {domain}")
+        print(f"   Authority: {authority_weight:.1f}x")
+        print(f"   Verification: {item['verification']['label']} ({item['verification']['confidence']:.0%})")
+        print(f"   Final Weight: {item['weight']:.3f}")
 
     # Continue with existing detailed output...
     print(f"Support Score: {final_verdict['support_score']:.2%}")
@@ -317,7 +264,7 @@ if __name__ == "__main__":
     print("BIAS PROFILING INTEGRATION SUMMARY")
     print("="*60)
 
-    # Count sources with profiles - SINGLE LOOP with all calculations
+    # Count sources with profiles
     sources_with_profiles = 0
     sri_lankan_sources = 0
     bias_distribution = {"opposition": 0, "neutral": 0, "pro_government": 0}
