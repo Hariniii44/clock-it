@@ -53,10 +53,14 @@ if __name__ == "__main__":
     # Ask user which method to use
     print("\nChoose search method:")
     print("1. Priority-based LiveFC (current sophisticated method)")
-    print("2. Simple Serper search (like playground)")
-    method = input("Enter 1 or 2: ").strip()
+    print("2. Simple Serper search")
+    print("3. Comprehensive Serper search (50+ results, ranked)")
+    print("4. Hybrid: Decomposition + Serper (RECOMMENDED)")
 
-    
+    method = input("Enter 1 or 2 or 3 or 4: ").strip()
+
+    # is giving rice to animals is a reason for the sri lanka's rice shortage?
+
     # claim = "Parliament of Sri Lanka has one of the lowest representations of female MPs in all of South Asia."
     
     # claim = "President Anura Kumara Dissanayake said that giving rice to animals is a reason for the country's rice shortage."
@@ -79,16 +83,34 @@ if __name__ == "__main__":
     print(f"\n   Analyzing claim: {claim}")
     
     # Retrieve evidence
-    print(f"\n   Retrieving {Config.NUM_EVIDENCE_SOURCES} evidence sources...")
+    # print(f"\n   Retrieving {Config.NUM_EVIDENCE_SOURCES} evidence sources...")
 
-    if method == "2":
-        print("    Using SIMPLE SERPER search...")
+
+    if method == "4":
+        print("   🔍 Using HYBRID: Decomposition + Serper...")
+        evidence = retriever.retrieve_hybrid_serper_decomposition(
+            claim, 
+            num_results=20,
+            results_per_query=10
+        )
+
+        print(f"   📊 VERIFICATION: Retrieved {len(evidence)} evidence pieces") 
+
+    elif method == "3":
+        print("   🔍 Using COMPREHENSIVE SERPER search...")
+        evidence = retriever.retrieve_simple_serper(
+            claim, 
+            num_results=Config.NUM_EVIDENCE_SOURCES,
+            get_all=True
+        )
+    elif method == "2":
+        print("   🔍 Using SIMPLE SERPER search...")
         evidence = retriever.retrieve_simple_serper(
             claim, 
             num_results=Config.NUM_EVIDENCE_SOURCES
         )
     else:
-        print("    Using PRIORITY-BASED LIVEFC search...")
+        print("   🔍 Using PRIORITY-BASED LIVEFC search...")
         evidence = retriever.retrieve_diverse_evidence_livefc(
             claim, 
             num_results=Config.NUM_EVIDENCE_SOURCES,
@@ -117,6 +139,13 @@ if __name__ == "__main__":
         alignments[alignment] = alignments.get(alignment, 0) + 1
     for alignment, count in alignments.items():
         print(f"      {alignment}: {count}")
+
+    print("   📈 Relevance Distribution:")
+    relevance_scores = [e.get('relevance_score', 0) for e in evidence]
+    if relevance_scores:
+        print(f"      Highest: {max(relevance_scores):.3f}")
+        print(f"      Lowest: {min(relevance_scores):.3f}")
+        print(f"      Average: {sum(relevance_scores)/len(relevance_scores):.3f}")
 
     print("   📋 Quick bias profile check:")
     sri_lankan_preview = 0
@@ -158,6 +187,10 @@ if __name__ == "__main__":
     for i, e in enumerate(evidence, 1):
         print(f"   Source {i}: {e['source']}")
         print(f"   Title: {e['title'][:60]}...")
+
+        if 'relevance_score' in e:
+            print(f"   Relevance Score: {e['relevance_score']:.3f}")
+
         print(f"   URL: {e['link']}")
         
         # Verification
@@ -193,8 +226,8 @@ if __name__ == "__main__":
 
         # Real-time analysis results
         print(f"       Real-time Analysis:")
-        print(f"         Political Stance: {bias_analysis['political_stance']['political_stance']} "
-              f"(score: {bias_analysis['political_stance']['stance_score']:.1f})")
+        # print(f"         Political Stance: {bias_analysis['political_stance']['political_stance']} "
+        #       f"(score: {bias_analysis['political_stance']['stance_score']:.1f})")
         print(f"         Emotional Tone: {bias_analysis['emotional_tone']['emotion']} "
               f"(score: {bias_analysis['emotional_tone']['emotion_score']:.2f})")
         print(f"         Framing: {bias_analysis['framing_bias']['framing_type']} "
@@ -223,7 +256,7 @@ if __name__ == "__main__":
     # Generate final verdict with enhanced information
     final_verdict = verdict_generator.generate_verdict(weighted_evidence)
 
-    # NEW: Generate AI synthesis
+    # Generate AI synthesis
     from src.synthesis import SynthesisEngine
     synthesizer = SynthesisEngine(Config.GROQ_API_KEY)
     ai_synthesis = synthesizer.generate_synthesis(
@@ -232,7 +265,7 @@ if __name__ == "__main__":
 
     # NEW: Display synthesis first (Option C format)
     print("="*60)
-    print("AI SYNTHESIS")
+    print("VERDICTS EXPLANATION")
     print("="*60)
     print(f" {ai_synthesis}")
     print()
