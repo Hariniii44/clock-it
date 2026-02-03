@@ -52,7 +52,7 @@ class EvidenceRanker:
             print(f"         ⚠️ Evidence ranking failed: {e}")
             return evidence_list[:top_k]
         
-    def rank_evidence_with_priority(self, claim: str, evidence_list: List[Dict], top_k: int = 10) -> List[Dict]:
+    def rank_evidence_with_priority(self, claim: str, evidence_list: List[Dict], top_k: int = 50) -> List[Dict]:
         """Rank evidence with priority source weighting"""
         
         if not self.ranker or not evidence_list:
