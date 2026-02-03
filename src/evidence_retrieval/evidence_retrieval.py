@@ -5,6 +5,8 @@ import re
 from datetime import datetime
 from urllib.parse import urlparse
 
+from src.evidence_retrieval.claim_decomposer import ClaimDecomposer
+
 class AdvancedEvidenceRetriever:
     def __init__(self, serper_key: str, gemini_key: str = None, groq_key: str = None):
         # self.serpapi_key = serpapi_key
@@ -358,7 +360,11 @@ class AdvancedEvidenceRetriever:
                 priority_score += 1.0
             
             result['priority_score'] = priority_score
-        
+
+            # Ensure source_alignment exists
+            if 'source_alignment' not in result:
+                result['source_alignment'] = self._classify_source_alignment(result.get('link', ''))
+
         # Sort by priority (AI relevance + traditional relevance)
         results.sort(key=lambda x: x['priority_score'], reverse=True)
         
@@ -420,12 +426,21 @@ class AdvancedEvidenceRetriever:
             return url.lower()
         
 
-    def retrieve_simple_serper(self, claim: str, num_results: int = 5) -> List[Dict]:
+    def retrieve_simple_serper(self, claim: str, num_results: int = 10, get_all: bool = False) -> List[Dict]:
         """
         Simple direct Serper search
-        No priority tiers, no decomposition, just straight search
+        Args:
+            claim: The claim to search
+            num_results: Final number of results to return
+            get_all: If True, retrieve many results and rank them
         """
-        print(f"    Simple Serper search: {claim[:50]}...")
+        if get_all:
+            # Comprehensive search - get many results
+            max_results = 50  # Serper max is usually 100
+            print(f"   🔍 Comprehensive Serper search (up to {max_results} results)...")
+        else:
+            max_results = num_results * 2
+            print(f"   🔍 Simple Serper search: {claim[:50]}...")
         
         import requests
         import time
@@ -433,15 +448,12 @@ class AdvancedEvidenceRetriever:
         # Rate limiting
         time.sleep(1)
         
-        # Direct search query - just the claim
-        query = claim
-        
         url = "https://google.serper.dev/search"
         payload = {
-            "q": query,
-            "num": num_results * 2,  # Get more to account for deduplication
-            "gl": "lk",  # Sri Lanka location
-            "hl": "en"   # English language
+            "q": claim,
+            "num": max_results,  # Request many more results
+            "gl": "lk",
+            "hl": "en"
         }
         headers = {
             "X-API-KEY": self.serper_key,
@@ -450,11 +462,11 @@ class AdvancedEvidenceRetriever:
         
         try:
             response = requests.post(url, json=payload, headers=headers)
-            print(f"       Response status: {response.status_code}")
+            print(f"      📡 Response status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"       Raw results keys: {list(data.keys())}")
+                print(f"      📊 Raw results keys: {list(data.keys())}")
                 
                 results = []
                 if "organic" in data:
@@ -465,13 +477,22 @@ class AdvancedEvidenceRetriever:
                             "link": item.get("link", ""),
                             "source": self._extract_domain(item.get("link", "")),
                             "date": item.get("date", ""),
-                            "position": item.get("position", 0)
+                            "position": item.get("position", 0),
+                            "search_type": "simple_serper"  # Add search method tracking
                         }
                         results.append(result)
-                        
-                print(f"      ✅ Extracted {len(results)} pieces")
-                return results[:num_results]  # Return only requested number
                 
+                print(f"      ✅ Retrieved {len(results)} total results")
+                
+                if get_all:
+                    # Apply ranking and then select top results
+                    print(f"      🏆 Ranking all {len(results)} results...")
+                    ranked_results = self._rank_and_select_evidence(claim, results, num_results)
+                    print(f"      📊 Selected top {len(ranked_results)} after ranking")
+                    return ranked_results
+                else:
+                    return results[:num_results]
+                    
             else:
                 print(f"      ❌ Search failed: {response.status_code}")
                 return []
@@ -479,4 +500,463 @@ class AdvancedEvidenceRetriever:
         except Exception as e:
             print(f"      ❌ Search error: {e}")
             return []
+        
+    def _rank_and_select_evidence(self, claim: str, all_results: List[Dict], num_final: int) -> List[Dict]:
+        """
+        Rank all retrieved results and select the best ones
+        """
+
+        print(f"      🎯 _rank_and_select_evidence: Targeting {num_final} final results")  # DEBUG
+
+        if not all_results:
+            return []
+        
+        # Import ranker if not already available
+        from .evidence_ranker import EvidenceRanker
+        if not hasattr(self, 'ranker'):
+            self.ranker = EvidenceRanker()
+        
+        ranking_target = min(len(all_results), num_final * 3)  # Get 3x target for diversity
+        print(f"      📊 Cross-encoder ranking top {ranking_target} from {len(all_results)} total")
+
+        # Apply cross-encoder ranking
+        ranked_evidence = self.ranker.rank_evidence_with_priority(
+            claim, 
+            all_results,
+            top_k=ranking_target
+            # prioritize_sri_lankan=True
+        )
+        
+        print(f"      📈 Cross-encoder returned {len(ranked_evidence)} ranked results")
+
+        # Apply diversity selection
+        diverse_evidence = self._ensure_source_diversity(ranked_evidence, num_final)
+        
+        print(f"      🎯 Diversity selection returned {len(diverse_evidence)} final results")
+        return diverse_evidence
+    
+    # def retrieve_hybrid_serper_decomposition(self, claim: str, num_results: int = 10) -> List[Dict]:
+    #     """
+    #     Hybrid approach: Claim decomposition + Simple Serper search
+    #     """
+    #     print(f"    Hybrid: Decomposition + Serper search...")
+        
+    #     all_results = []
+        
+    #     # Step 1: Decompose claim into questions
+    #     print(f"    Decomposing claim...")
+    #     decomposer = ClaimDecomposer(self.groq_key)
+    #     questions = decomposer.decompose_claim(claim, num_questions=4)
+        
+    #     print(f"    Generated {len(questions)} verification questions:")
+    #     for i, q in enumerate(questions, 1):
+    #         print(f"      Q{i}: {q[:80]}...")
+        
+    #     # Step 2: Search for original claim + each question using simple Serper
+    #     search_queries = [claim] + questions
+
+    #     print(f"   🔍 Searching {results_per_query} results per query...")
+
+    #     results_per_query = max(2, num_results // len(search_queries))  # Distribute results
+        
+    #     for i, query in enumerate(search_queries):
+    #         if i == 0:
+    #             print(f"    Original claim search...")
+    #         else:
+    #             print(f"    Question {i} search...")
+            
+    #         # Use simple Serper search for each query
+    #         query_results = self._simple_serper_query(query, results_per_query)
+            
+    #         # Tag results with query source
+    #         for result in query_results:
+    #             result['query_source'] = 'original_claim' if i == 0 else f'question_{i}'
+    #             result['query_text'] = query
+            
+    #         all_results.extend(query_results)
+            
+    #         # Rate limiting between queries
+    #         import time
+    #         time.sleep(0.5)
+        
+    #     print(f"    Retrieved {len(all_results)} total results from {len(search_queries)} queries")
+        
+    #     # Step 3: Deduplicate
+    #     unique_results = self._advanced_deduplication(all_results)
+    #     print(f"    After deduplication: {len(unique_results)} unique results")
+        
+    #     # Step 4: Rank and select top results
+    #     if len(unique_results) > num_results:
+    #         print(f"    Ranking and selecting top {num_results} results...")
+    #         final_results = self._rank_and_select_evidence(claim, unique_results, num_results)
+    #     else:
+    #         final_results = unique_results
+        
+    #     print(f"   ✅ Final selection: {len(final_results)} evidence pieces")
+    #     return final_results
+
+    def _simple_serper_query(self, query: str, max_results: int = 5) -> List[Dict]:
+        """
+        Simple Serper query for a single search term
+        """
+        import requests
+        
+        url = "https://google.serper.dev/search"
+        payload = {
+            "q": query,
+            "num": max_results,
+            "gl": "lk",  # Sri Lanka
+            "hl": "en"   # English
+        }
+        headers = {
+            "X-API-KEY": self.serper_key,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results = []
+                
+                if "organic" in data:
+                    for item in data["organic"]:
+                        result = {
+                            "title": item.get("title", ""),
+                            "snippet": item.get("snippet", ""),
+                            "link": item.get("link", ""),
+                            "source": self._extract_domain(item.get("link", "")),
+                            "date": item.get("date", ""),
+                            "position": item.get("position", 0),
+                            "search_type": "hybrid_serper"
+                        }
+                        results.append(result)
+                        
+                filtered_results = self._filter_out_social_media(results)
+                return filtered_results[:max_results]
+                
+            else:
+                print(f"      ⚠️ Search failed for query: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"      ❌ Search error: {e}")
+            return []
+        
+    # def retrieve_hybrid_serper_decomposition(self, claim: str, num_results: int = 10, 
+    #                                    results_per_query: int = 10) -> List[Dict]:
+    #     """
+    #     Hybrid approach: Claim decomposition + Simple Serper search
+    #     Args:
+    #         claim: The claim to fact-check
+    #         num_results: FINAL number of results to return after ranking
+    #         results_per_query: Number of results to get PER QUERY (NEW!)
+    #     """
+    #     print(f"   🔍 Hybrid: Decomposition + Serper search...")
+    #     print(f"   🎯 Target final results: {num_results}")  # DEBUG
+
+        
+    #     all_results = []
+        
+    #     # Step 1: Decompose claim into questions
+    #     print(f"   🧠 Decomposing claim...")
+    #     decomposer = ClaimDecomposer(self.groq_key)
+    #     questions = decomposer.decompose_claim(claim, num_questions=4)
+        
+    #     print(f"   📋 Generated {len(questions)} verification questions:")
+    #     for i, q in enumerate(questions, 1):
+    #         print(f"      Q{i}: {q[:80]}...")
+        
+    #     # Step 2: Search for original claim + each question
+    #     search_queries = [claim] + questions
+        
+    #     print(f"   🔍 Searching {results_per_query} results per query...")
+        
+    #     for i, query in enumerate(search_queries):
+    #         if i == 0:
+    #             print(f"   🔍 Original claim search...")
+    #         else:
+    #             print(f"   🔍 Question {i} search...")
+            
+    #         # Get FULL results_per_query for EACH query
+    #         query_results = self._simple_serper_query(query, results_per_query)
+            
+    #         # Tag results with query source
+    #         for result in query_results:
+    #             result['query_source'] = 'original_claim' if i == 0 else f'question_{i}'
+    #             result['query_text'] = query
+            
+    #         all_results.extend(query_results)
+    #         print(f"      📊 Retrieved {len(query_results)} results")
+            
+    #         # Rate limiting between queries
+    #         import time
+    #         time.sleep(0.5)
+        
+    #     print(f"   📊 Retrieved {len(all_results)} total results from {len(search_queries)} queries")
+        
+    #     # Step 3: Deduplicate
+    #     unique_results = self._advanced_deduplication(all_results)
+    #     print(f"   🔄 After deduplication: {len(unique_results)} unique results")
+        
+    #     # Step 4: Rank and select top results (only if we have more than needed)
+    #     if len(unique_results) > num_results:
+    #         print(f"   🏆 Ranking and selecting top {num_results} results...")
+    #         final_results = self._rank_and_select_evidence(claim, unique_results, num_results)
+    #         print(f"   📊 After ranking: {len(final_results)} results") 
+    #     else:
+    #         print(f"   ✅ Keeping all {len(unique_results)} unique results")
+    #         final_results = unique_results
+
+
+    #     if len(final_results) < num_results and len(unique_results) >= num_results:
+    #         print(f"    Ranking returned {len(final_results)} but we have {len(unique_results)} available")
+    #         print(f"    Taking top {num_results} from unique results directly")
+    #         final_results = unique_results[:num_results]
+        
+    #     print(f"   ✅ Final selection: {len(final_results)} evidence pieces")
+    #     return final_results
+
+    def retrieve_hybrid_serper_decomposition(self, claim: str, num_results: int = 20, 
+                                   results_per_query: int = 10) -> List[Dict]:
+        """
+        Enhanced hybrid search with cross-encoder relevance filtering
+        """
+        print(f"   🔍 Hybrid: Decomposition + Serper + Relevance Filtering...")
+        print(f"   🎯 Target final results: {num_results}")
+        
+        all_results = []
+        
+        # Step 1: Decompose claim into questions
+        print(f"   🧠 Decomposing claim...")
+        decomposer = ClaimDecomposer(self.groq_key)
+        questions = decomposer.decompose_claim(claim, num_questions=4)
+        
+        print(f"   📋 Generated {len(questions)} verification questions:")
+        for i, q in enumerate(questions, 1):
+            print(f"      Q{i}: {q[:80]}...")
+        
+        # Step 2: Search for original claim + each question
+        search_queries = [claim] + questions
+        
+        print(f"   🔍 Searching {results_per_query} results per query...")
+        
+        for i, query in enumerate(search_queries):
+            if i == 0:
+                print(f"   🔍 Original claim search...")
+            else:
+                print(f"   🔍 Question {i} search...")
+            
+            query_results = self._simple_serper_query(query, results_per_query)
+            
+            for result in query_results:
+                result['query_source'] = 'original_claim' if i == 0 else f'question_{i}'
+                result['query_text'] = query
+            
+            all_results.extend(query_results)
+            print(f"      📊 Retrieved {len(query_results)} results")
+            
+            import time
+            time.sleep(0.5)
+        
+        print(f"   📊 Retrieved {len(all_results)} total results from {len(search_queries)} queries")
+        
+        # Step 3: FILTER SOCIAL MEDIA FIRST
+        print(f"         🔄 Pre-filtering social media sources...")
+        all_results = self._filter_out_social_media(all_results)
+        print(f"         📊 After social media filtering: {len(all_results)} sources")
+
+        # Step 3: Deduplicate
+        unique_results = self._advanced_deduplication(all_results)
+        print(f"   🔄 After deduplication: {len(unique_results)} unique results")
+        
+        # NEW: Step 4: Cross-encoder relevance filtering
+        relevant_results = self._filter_by_cross_encoder_relevance(
+            claim, 
+            unique_results, 
+            top_k=num_results,
+            relevance_threshold=0.15  # Lower threshold to ensure we get results
+        )
+        
+        # Step 5: Final ranking (optional, since cross-encoder already ranked)
+        if len(relevant_results) > num_results:
+            print(f"   🏆 Final ranking selection...")
+            final_results = relevant_results[:num_results]
+        else:
+            final_results = relevant_results
+        
+        print(f"   ✅ Final selection: {len(final_results)} highly relevant evidence pieces")
+        return final_results
+    
+    def _is_social_media_source(self, url: str) -> bool:
+        """Check if a source is from social media platforms"""
+        social_media_domains = [
+            'facebook.com',
+            'twitter.com', 
+            'x.com',
+            'instagram.com',
+            'tiktok.com',
+            'youtube.com',
+            'youtu.be',
+            'linkedin.com',
+            'reddit.com',
+            'pinterest.com',
+            'snapchat.com',
+            'telegram.org',
+            'whatsapp.com'
+        ]
+        
+        domain = self._extract_domain(url)
+        return any(social_domain in domain for social_domain in social_media_domains)
+
+    def _filter_out_social_media(self, results: List[Dict]) -> List[Dict]:
+        """Remove social media sources completely"""
+        filtered_results = []
+        removed_count = 0
+        
+        for result in results:
+            url = result.get('link', '')
+            if self._is_social_media_source(url):
+                removed_count += 1
+                print(f"         🚫 Removed social media: {self._extract_domain(url)}")
+            else:
+                filtered_results.append(result)
+        
+        if removed_count > 0:
+            print(f"      🧹 Filtered out {removed_count} social media sources")
+        
+        return filtered_results
+
+    def _filter_by_cross_encoder_relevance(self, claim: str, evidence_list: List[Dict], 
+                                     top_k: int = 10, relevance_threshold: float = 0.3) -> List[Dict]:
+        """
+        Use cross-encoder to score relevance and filter evidence before verification
+        """
+        print(f"   🎯 Cross-encoder relevance filtering...")
+        print(f"      Threshold: {relevance_threshold}, Target: {top_k} sources")
+        
+        if not evidence_list:
+            return []
+
+        # FIRST: Remove social media sources completely
+        pre_filtered = self._filter_out_social_media(evidence_list)
+        if len(pre_filtered) < len(evidence_list):
+            print(f"      🧹 Pre-filtered: {len(evidence_list)} → {len(pre_filtered)} (removed social media)")
+
+        # Import cross-encoder if not available
+        try:
+            from sentence_transformers import CrossEncoder
+            if not hasattr(self, 'relevance_ranker'):
+                print(f"      📊 Loading cross-encoder for relevance...")
+                self.relevance_ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2')
+                print(f"      ✅ Cross-encoder loaded")
+        except Exception as e:
+            print(f"      ❌ Cross-encoder loading failed: {e}")
+            return evidence_list[:top_k]  # Fallback to first k results
+        
+        # Prepare claim-evidence pairs for scoring
+        pairs = []
+        valid_evidence = []
+        
+        for evidence in evidence_list:
+            # Combine title and snippet for better context
+            evidence_text = f"{evidence.get('title', '')} {evidence.get('snippet', '')}"
+            evidence_text = evidence_text.strip()
+            
+            if evidence_text and len(evidence_text) > 10:  # Skip empty or very short evidence
+                pairs.append([claim, evidence_text])
+                valid_evidence.append(evidence)
+        
+        if not pairs:
+            print(f"      ⚠️ No valid evidence text found")
+            return []
+        
+        print(f"      📊 Scoring {len(pairs)} evidence pieces...")
+        
+        # Get relevance scores
+        try:
+            scores = self.relevance_ranker.predict(pairs)
+            
+            # Add scores to evidence and sort by relevance
+            scored_evidence = []
+            for evidence, score in zip(valid_evidence, scores):
+                base_score = float(score)  # Get base cross-encoder score
+                
+                # ADD QUALITY SOURCE BONUS HERE
+                source = evidence.get('source', '').lower()
+                link = evidence.get('link', '').lower()
+                
+                # Academic/Research sources
+                if any(academic in source for academic in [
+                    'researchgate.net', 'academia.edu', 'scholar.google', 
+                    'jstor.org', 'pubmed.ncbi', 'arxiv.org'
+                ]):
+                    base_score += 0.2
+                    print(f"         📚 Academic bonus: {source}")
+                
+                # Government/Official sources (.gov.lk domains)
+                elif any(official in source for official in [
+                    'gov.lk', 'parliament.lk', 'president.gov.lk', 'cbsl.lk',
+                    'statistics.gov.lk', 'treasury.gov.lk', 'pmoffice.gov.lk'
+                ]):
+                    base_score += 0.3
+                    print(f"         🏛️ Official source bonus: {source}")
+
+                # International Organizations
+                elif any(intl in source for intl in [
+                    'worldbank.org', 'imf.org', 'fao.org', 'un.org',
+                    'oecd.org', 'adb.org'
+                ]):
+                    base_score += 0.25
+                    print(f"         🌍 International org bonus: {source}")
+                
+                # Quality News Sources (Sri Lankan)
+                elif any(quality in source for quality in [
+                    'economynext.com', 'ft.lk', 'themorning.lk'
+                ]):
+                    base_score += 0.1
+                    print(f"         📰 Quality news bonus: {source}")
+                
+                # Penalty for low-quality sources
+                elif any(low_qual in source for low_qual in [
+                    'facebook.com', 'twitter.com', 'instagram.com',
+                    'tiktok.com', 'youtube.com'
+                ]):
+                    base_score -= 0.15
+                    print(f"         📱 Social media penalty: {source}")
+                
+                evidence['relevance_score'] = min(base_score, 10.0)
+                
+                # evidence['relevance_score'] = float(score)
+                scored_evidence.append(evidence)
+            
+            # Sort by relevance score (highest first)
+            scored_evidence.sort(key=lambda x: x['relevance_score'], reverse=True)
+            
+            # Apply threshold and top-k filtering
+            filtered_evidence = []
+            for evidence in scored_evidence:
+                if (len(filtered_evidence) < top_k and 
+                    evidence['relevance_score'] >= relevance_threshold):
+                    filtered_evidence.append(evidence)
+            
+            # If we don't have enough above threshold, take top results anyway
+            if len(filtered_evidence) < min(5, top_k):  # Ensure at least 5 sources
+                print(f"      ⚠️ Only {len(filtered_evidence)} above threshold, taking top {top_k}")
+                filtered_evidence = scored_evidence[:top_k]
+            
+            # Display filtering results
+            print(f"      📈 Relevance scores:")
+            for i, evidence in enumerate(filtered_evidence[:5], 1):
+                score = evidence['relevance_score']
+                title = evidence.get('title', 'No title')[:50]
+                print(f"         {i}. {title}... (score: {score:.3f})")
+            
+            print(f"      ✅ Selected {len(filtered_evidence)} most relevant sources")
+            return filtered_evidence
+            
+        except Exception as e:
+            print(f"      ❌ Relevance scoring failed: {e}")
+            return evidence_list[:top_k]  # Fallback
 
