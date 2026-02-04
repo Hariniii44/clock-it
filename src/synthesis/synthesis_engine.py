@@ -66,7 +66,7 @@ class SynthesisEngine:
             return self._clean_synthesis_output(synthesis)
             
         except Exception as e:
-            print(f"⚠️ Synthesis generation failed: {e}")
+            print(f"Synthesis generation failed: {e}")
             return self._fallback_synthesis(claim, final_verdict)
 
     def _create_bias_aware_analysis(self, claim: str, evidence: List[Dict], 
@@ -157,7 +157,7 @@ class SynthesisEngine:
             supporting_sources, refuting_sources, neutral_sources, claim
         )
         if bias_warning:
-            analysis_parts.append("⚠️ BIAS ALERT:")
+            analysis_parts.append("BIAS ALERT:")
             analysis_parts.extend(bias_warning)
             analysis_parts.append("")
         
@@ -357,20 +357,20 @@ class SynthesisEngine:
             'gov.lk', 'statistics', 'parliament', 'cbsl', 'treasury', 'president.gov'
         ]):
             source_info['bias_label'] = "Official Government"
-            source_info['reliability_icon'] = "🏛️ Government Source"
+            source_info['reliability_icon'] = "Government Source"
             
         elif any(academic in source_name.lower() for academic in [
             'researchgate', 'fao', 'worldbank', 'imf', 'un.org', 'harti'
         ]):
             source_info['bias_label'] = "Academic/Research"
-            source_info['reliability_icon'] = "📚 Academic Source"
+            source_info['reliability_icon'] = "Academic Source"
             
         # Third Priority: International news/organizations
         elif any(intl in source_name.lower() for intl in [
             'bbc', 'cnn', 'reuters', 'ap.org', 'bloomberg'
         ]):
             source_info['bias_label'] = "International Media"
-            source_info['reliability_icon'] = "🌍 International"
+            source_info['reliability_icon'] = "International"
             
         # Skip unknown sources (don't include in bias analysis)
         else:
@@ -504,18 +504,18 @@ class SynthesisEngine:
         
         # Bias imbalance warnings
         if total_gov > 0 and total_opp == 0:
-            warnings.append("• ⚠️ No opposition sources - potential pro-government bias")
+            warnings.append("No opposition sources - potential pro-government bias")
         elif total_opp > 0 and total_gov == 0:
-            warnings.append("• ⚠️ No pro-government sources - potential opposition bias")
+            warnings.append("No pro-government sources - potential opposition bias")
         elif abs(total_gov - total_opp) >= 3:
             stronger = "pro-government" if total_gov > total_opp else "opposition"
-            warnings.append(f"• ⚠️ Strong {stronger} source bias ({max(total_gov, total_opp)} vs {min(total_gov, total_opp)})")
+            warnings.append(f"Strong {stronger} source bias ({max(total_gov, total_opp)} vs {min(total_gov, total_opp)})")
         
         # Contextual warnings based on claim type
         if any(word in claim.lower() for word in ['government', 'president', 'minister', 'parliament']):
             if total_gov > total_opp:
-                warnings.append("• Government sources may overstate achievements on political claims")
+                warnings.append("Government sources may overstate achievements on political claims")
             elif total_opp > total_gov:
-                warnings.append("• Opposition sources may overstate criticism of government")
+                warnings.append("Opposition sources may overstate criticism of government")
         
         return warnings

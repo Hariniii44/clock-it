@@ -17,9 +17,9 @@ class AdvancedEvidenceRetriever:
         # Load spaCy model
         try:
             self.nlp = spacy.load("en_core_web_sm")
-            print("   ✅ spaCy NER model loaded")
+            print(" spaCy NER model loaded")
         except Exception as e:
-            print(f"   ⚠️ Could not load spaCy model: {e}")
+            print(f" Could not load spaCy model: {e}")
             self.nlp = None
 
         self.source_categories = {
@@ -107,7 +107,7 @@ class AdvancedEvidenceRetriever:
                 unique_evidence.append(evidence)
                 seen_content.append(content)
         
-        print(f"         🔄 Deduplication: {len(evidence_list)} → {len(unique_evidence)} unique pieces")
+        print(f"Deduplication: {len(evidence_list)} → {len(unique_evidence)} unique pieces")
         return unique_evidence
     
     def _extract_domain(self, url: str) -> str:
@@ -160,11 +160,11 @@ class AdvancedEvidenceRetriever:
                 return filtered_results[:max_results]
                 
             else:
-                print(f"      ⚠️ Search failed for query: {response.status_code}")
+                print(f" Search failed for query: {response.status_code}")
                 return []
                 
         except Exception as e:
-            print(f"      ❌ Search error: {e}")
+            print(f"  Search error: {e}")
             return []
         
 
@@ -174,29 +174,29 @@ class AdvancedEvidenceRetriever:
         """
         Enhanced hybrid search with cross-encoder relevance filtering
         """
-        print(f"   🎯 Target final results: {num_results}")
+        print(f" Target final results: {num_results}")
         
         all_results = []
         
         # Step 1: Decompose claim into questions
-        print(f"   🧠 Decomposing claim...")
+        print(f" Decomposing claim...")
         decomposer = ClaimDecomposer(self.groq_key)
         questions = decomposer.decompose_claim(claim, num_questions=4)
         
-        print(f"   📋 Generated {len(questions)} verification questions:")
+        print(f" Generated {len(questions)} verification questions:")
         for i, q in enumerate(questions, 1):
             print(f"      Q{i}: {q[:80]}...")
         
         # Step 2: Search for original claim + each question
         search_queries = [claim] + questions
         
-        print(f"   🔍 Searching {results_per_query} results per query...")
+        print(f"  Searching {results_per_query} results per query...")
         
         for i, query in enumerate(search_queries):
             if i == 0:
-                print(f"   🔍 Original claim search...")
+                print(f" Original claim search...")
             else:
-                print(f"   🔍 Question {i} search...")
+                print(f"  Question {i} search...")
             
             query_results = self._simple_serper_query(query, results_per_query)
             
@@ -205,23 +205,23 @@ class AdvancedEvidenceRetriever:
                 result['query_text'] = query
             
             all_results.extend(query_results)
-            print(f"      📊 Retrieved {len(query_results)} results")
+            print(f"    Retrieved {len(query_results)} results")
             
             import time
             time.sleep(0.5)
         
-        print(f"   📊 Retrieved {len(all_results)} total results from {len(search_queries)} queries")
+        print(f"    Retrieved {len(all_results)} total results from {len(search_queries)} queries")
         
         # Step 3: FILTER SOCIAL MEDIA FIRST
-        print(f"         🔄 Pre-filtering social media sources...")
+        print(f"      Pre-filtering social media sources...")
         all_results = self._filter_out_social_media(all_results)
-        print(f"         📊 After social media filtering: {len(all_results)} sources")
+        print(f"      After social media filtering: {len(all_results)} sources")
 
         # Step 3: Deduplicate
         unique_results = self._advanced_deduplication(all_results)
-        print(f"   🔄 After deduplication: {len(unique_results)} unique results")
+        print(f"    After deduplication: {len(unique_results)} unique results")
         
-        # NEW: Step 4: Cross-encoder relevance filtering
+        # Step 4: Cross-encoder relevance filtering
         relevant_results = self._filter_by_cross_encoder_relevance(
             claim, 
             unique_results, 
@@ -231,12 +231,12 @@ class AdvancedEvidenceRetriever:
         
         # Step 5: Final ranking (optional, since cross-encoder already ranked)
         if len(relevant_results) > num_results:
-            print(f"   🏆 Final ranking selection...")
+            print(f"    Final ranking selection...")
             final_results = relevant_results[:num_results]
         else:
             final_results = relevant_results
         
-        print(f"   ✅ Final selection: {len(final_results)} highly relevant evidence pieces")
+        print(f"    Final selection: {len(final_results)} highly relevant evidence pieces")
         return final_results
     
     def _is_social_media_source(self, url: str) -> bool:
@@ -269,12 +269,12 @@ class AdvancedEvidenceRetriever:
             url = result.get('link', '')
             if self._is_social_media_source(url):
                 removed_count += 1
-                print(f"         🚫 Removed social media: {self._extract_domain(url)}")
+                print(f"   Removed social media: {self._extract_domain(url)}")
             else:
                 filtered_results.append(result)
         
         if removed_count > 0:
-            print(f"      🧹 Filtered out {removed_count} social media sources")
+            print(f" Filtered out {removed_count} social media sources")
         
         return filtered_results
 
@@ -283,7 +283,7 @@ class AdvancedEvidenceRetriever:
         """
         Use cross-encoder to score relevance and filter evidence before verification
         """
-        print(f"   🎯 Cross-encoder relevance filtering...")
+        print(f"   Cross-encoder relevance filtering...")
         print(f"      Threshold: {relevance_threshold}, Target: {top_k} sources")
         
         if not evidence_list:
@@ -292,17 +292,17 @@ class AdvancedEvidenceRetriever:
         # FIRST: Remove social media sources completely
         pre_filtered = self._filter_out_social_media(evidence_list)
         if len(pre_filtered) < len(evidence_list):
-            print(f"      🧹 Pre-filtered: {len(evidence_list)} → {len(pre_filtered)} (removed social media)")
+            print(f"      Pre-filtered: {len(evidence_list)} → {len(pre_filtered)} (removed social media)")
 
         # Import cross-encoder if not available
         try:
             from sentence_transformers import CrossEncoder
             if not hasattr(self, 'relevance_ranker'):
-                print(f"      📊 Loading cross-encoder for relevance...")
+                print(f"      Loading cross-encoder for relevance...")
                 self.relevance_ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2')
-                print(f"      ✅ Cross-encoder loaded")
+                print(f"      Cross-encoder loaded")
         except Exception as e:
-            print(f"      ❌ Cross-encoder loading failed: {e}")
+            print(f"     Cross-encoder loading failed: {e}")
             return evidence_list[:top_k]  # Fallback to first k results
         
         # Prepare claim-evidence pairs for scoring
@@ -319,10 +319,10 @@ class AdvancedEvidenceRetriever:
                 valid_evidence.append(evidence)
         
         if not pairs:
-            print(f"      ⚠️ No valid evidence text found")
+            print(f"No valid evidence text found")
             return []
         
-        print(f"      📊 Scoring {len(pairs)} evidence pieces...")
+        print(f"Scoring {len(pairs)} evidence pieces...")
         
         # Get relevance scores
         try:
@@ -333,7 +333,7 @@ class AdvancedEvidenceRetriever:
             for evidence, score in zip(valid_evidence, scores):
                 base_score = float(score)  # Get base cross-encoder score
                 
-                # ADD QUALITY SOURCE BONUS HERE
+                # quality source binus
                 source = evidence.get('source', '').lower()
                 link = evidence.get('link', '').lower()
                 
@@ -343,7 +343,7 @@ class AdvancedEvidenceRetriever:
                     'jstor.org', 'pubmed.ncbi', 'arxiv.org'
                 ]):
                     base_score += 0.2
-                    print(f"         📚 Academic bonus: {source}")
+                    print(f" Academic bonus: {source}")
                 
                 # Government/Official sources (.gov.lk domains)
                 elif any(official in source for official in [
@@ -351,7 +351,7 @@ class AdvancedEvidenceRetriever:
                     'statistics.gov.lk', 'treasury.gov.lk', 'pmoffice.gov.lk'
                 ]):
                     base_score += 0.3
-                    print(f"         🏛️ Official source bonus: {source}")
+                    print(f"  Official source bonus: {source}")
 
                 # International Organizations
                 elif any(intl in source for intl in [
@@ -359,14 +359,14 @@ class AdvancedEvidenceRetriever:
                     'oecd.org', 'adb.org'
                 ]):
                     base_score += 0.25
-                    print(f"         🌍 International org bonus: {source}")
+                    print(f"  International org bonus: {source}")
                 
                 # Quality News Sources (Sri Lankan)
                 elif any(quality in source for quality in [
                     'economynext.com', 'ft.lk', 'themorning.lk'
                 ]):
                     base_score += 0.1
-                    print(f"         📰 Quality news bonus: {source}")
+                    print(f"  Quality news bonus: {source}")
                 
                 # Penalty for low-quality sources
                 elif any(low_qual in source for low_qual in [
@@ -374,7 +374,7 @@ class AdvancedEvidenceRetriever:
                     'tiktok.com', 'youtube.com'
                 ]):
                     base_score -= 0.15
-                    print(f"         📱 Social media penalty: {source}")
+                    print(f"  Social media penalty: {source}")
                 
                 evidence['relevance_score'] = min(base_score, 10.0)
                 
@@ -393,20 +393,20 @@ class AdvancedEvidenceRetriever:
             
             # If we don't have enough above threshold, take top results anyway
             if len(filtered_evidence) < min(5, top_k):  # Ensure at least 5 sources
-                print(f"      ⚠️ Only {len(filtered_evidence)} above threshold, taking top {top_k}")
+                print(f" Only {len(filtered_evidence)} above threshold, taking top {top_k}")
                 filtered_evidence = scored_evidence[:top_k]
             
             # Display filtering results
-            print(f"      📈 Relevance scores:")
+            print(f" Relevance scores:")
             for i, evidence in enumerate(filtered_evidence[:5], 1):
                 score = evidence['relevance_score']
                 title = evidence.get('title', 'No title')[:50]
                 print(f"         {i}. {title}... (score: {score:.3f})")
             
-            print(f"      ✅ Selected {len(filtered_evidence)} most relevant sources")
+            print(f"Selected {len(filtered_evidence)} most relevant sources")
             return filtered_evidence
             
         except Exception as e:
-            print(f"      ❌ Relevance scoring failed: {e}")
+            print(f"Relevance scoring failed: {e}")
             return evidence_list[:top_k]  # Fallback
 

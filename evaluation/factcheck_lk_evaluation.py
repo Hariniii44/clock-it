@@ -5,7 +5,6 @@ import json
 import os
 import sys
 
-# Add src to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -139,9 +138,9 @@ def evaluate_factcheck_lk_claims():
             factcheck_verdict = claim_data['factcheck_lk_verdict']
             is_correct = our_verdict == factcheck_verdict
             
-            print(f"📈 OUR VERDICT: {our_verdict} ({final_verdict['confidence']:.1%} confidence)")
-            print(f"✅ FACTCHECK.LK: {factcheck_verdict}")
-            print(f"🎯 MATCH: {'✅ YES' if is_correct else '❌ NO'}")
+            print(f"OUR VERDICT: {our_verdict} ({final_verdict['confidence']:.1%} confidence)")
+            print(f"FACTCHECK.LK: {factcheck_verdict}")
+            print(f"MATCH: {'YES' if is_correct else 'NO'}")
             
             return {
                 'claim': claim[:100] + "...",
@@ -155,7 +154,7 @@ def evaluate_factcheck_lk_claims():
             }
             
         except Exception as e:
-            print(f"❌ ERROR: {e}")
+            print(f"ERROR: {e}")
             return {
                 'claim': claim[:100] + "...",
                 'speaker': claim_data['speaker'], 

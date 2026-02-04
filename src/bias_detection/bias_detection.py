@@ -18,11 +18,11 @@ class BiasDetector:
             device=-1,
             token=hf_token
         )
-        print("✅ Sentiment model loaded successfully")
+        print("Sentiment model loaded successfully")
         
         # Load pre-computed bias profiles
         self.bias_profiles = self._load_bias_profiles()
-        print(f"✅ Loaded bias profiles for {len(self.bias_profiles)} sources")
+        print(f"Loaded bias profiles for {len(self.bias_profiles)} sources")
     
     def _load_bias_profiles(self) -> dict:
         """Load pre-computed bias profiles from bias detection pipeline"""
@@ -30,7 +30,7 @@ class BiasDetector:
             with open("data/bias_profiles.json", 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("⚠️ Bias profiles not found. Using real-time analysis only.")
+            print("Bias profiles not found. Using real-time analysis only.")
             return {}
     
     def _extract_domain(self, url: str) -> str:

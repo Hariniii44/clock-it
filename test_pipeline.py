@@ -9,10 +9,10 @@ if __name__ == "__main__":
     print("\n1. Validating configuration...")
     try:
         Config.validate()
-        print("   ✅ Configuration valid")
+        print("Configuration valid")
         # Config.print_config()
     except ValueError as e:
-        print(f"   ❌ Configuration error: {e}")
+        print(f"Configuration error: {e}")
         exit(1)
     
     # Step 2: Initialize components
@@ -68,14 +68,14 @@ if __name__ == "__main__":
     for alignment, count in alignments.items():
         print(f"      {alignment}: {count}")
 
-    print("   📈 Relevance Distribution:")
+    print("Relevance Distribution:")
     relevance_scores = [e.get('relevance_score', 0) for e in evidence]
     if relevance_scores:
         print(f"      Highest: {max(relevance_scores):.3f}")
         print(f"      Lowest: {min(relevance_scores):.3f}")
         print(f"      Average: {sum(relevance_scores)/len(relevance_scores):.3f}")
 
-    print("   📋 Quick bias profile check:")
+    print("Quick bias profile check:")
     sri_lankan_preview = 0
     for e in evidence:
         domain = None
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         bias_analyses.append(bias_analysis)
 
         # Show enhanced bias information
-        print(f"   📊 BIAS ANALYSIS:")
+        print(f"BIAS ANALYSIS:")
         
         # Check if source profile is available
         if "source_profile" in bias_analysis and bias_analysis["source_profile"]["has_profile"]:
@@ -189,19 +189,19 @@ if __name__ == "__main__":
         claim, evidence, verification_results, bias_analyses, final_verdict
     )
 
-    # NEW: Display synthesis first (Option C format)
+    # Display synthesis first (Option C format)
     print("="*60)
     print("VERDICTS EXPLANATION")
     print("="*60)
     print(f" {ai_synthesis}")
     print()
     
-    print(f"✅ FACT-CHECK VERDICT: {final_verdict['verdict']} ({final_verdict['confidence']:.0%} confidence)")
+    print(f"FACT-CHECK VERDICT: {final_verdict['verdict']} ({final_verdict['confidence']:.0%} confidence)")
     
     # Show factual claim detection
     if 'is_factual_claim' in final_verdict:
         claim_type = "Factual Claim" if final_verdict['is_factual_claim'] else "Opinion/Subjective"
-        print(f"📊 Claim Type: {claim_type}")
+        print(f"Claim Type: {claim_type}")
     
     print()
     
@@ -291,9 +291,9 @@ if __name__ == "__main__":
                 bias_distribution["neutral"] += 1
 
     # Display results
-    print(f"📊 Sources Analyzed: {len(weighted_evidence)}")
-    print(f"🇱🇰 Sri Lankan Sources with Bias Profiles: {sources_with_profiles}/{len(weighted_evidence)}")
-    print(f"🌐 International/Unknown Sources: {len(weighted_evidence) - sri_lankan_sources}")
+    print(f"Sources Analyzed: {len(weighted_evidence)}")
+    print(f"Sri Lankan Sources with Bias Profiles: {sources_with_profiles}/{len(weighted_evidence)}")
+    print(f"International/Unknown Sources: {len(weighted_evidence) - sri_lankan_sources}")
 
     if sources_with_profiles > 0:
         print(f"\n Bias Distribution of Profiled Sources:")
@@ -315,18 +315,20 @@ if __name__ == "__main__":
 
     # Integration status with more granular feedback
     if sources_with_profiles >= 3:
-        status = "✅ FULLY ACTIVE"
+        status = "FULLY ACTIVE"
     elif sources_with_profiles >= 1:
-        status = "✅ ACTIVE"
+        status = "ACTIVE"
     else:
-        status = "⚠️ LIMITED"
+        status = "LIMITED"
 
     print(f"\n Bias-aware weighting: {status}")
 
     # Performance summary
     print(f"\nSYSTEM PERFORMANCE:")
     print(f"   Evidence Retrieval:  {len(evidence)} sources found")
-    print(f"   Bias Profiling: {status.split()[1]} ({sources_with_profiles} profiled sources)")
+    status_parts = status.split()
+    status_word = status_parts[-1] if status_parts else "UNKNOWN"
+    print(f"   Bias Profiling: {status_word} ({sources_with_profiles} profiled sources)")
     print(f"   Verification:  All sources processed")
     print(f"   Final Verdict:  {final_verdict['verdict']} ({final_verdict['confidence']:.0%})")
 

@@ -33,17 +33,17 @@ class ClaimVerifier:
                     device=device,
                     token=hf_token
                 )
-                print(f"✅ Successfully loaded: {model_name}")
+                print(f"Successfully loaded: {model_name}")
                 self.model_name = model_name
                 break
             except Exception as e:
-                print(f"⚠️ Failed to load {model_name}: {e}")
+                print(f"Failed to load {model_name}: {e}")
                 continue
         
         if self.nli_model is None:
             raise RuntimeError("Failed to load any NLI model. Please check your internet connection and try again.")
         
-        print("✅ Fallback NLI model loaded successfully")
+        print("Fallback NLI model loaded successfully")
     
     def verify_claim(self, claim: str, evidence: str) -> Dict:
         """

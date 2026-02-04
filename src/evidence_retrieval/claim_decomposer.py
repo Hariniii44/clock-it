@@ -61,7 +61,7 @@ class ClaimDecomposer:
             return questions[:num_questions]
 
         except Exception as e:
-            print(f"         ⚠️ Claim decomposition failed: {e}")
+            print(f"Claim decomposition failed: {e}")
             return self._fallback_questions(claim, num_questions)
     
     def _fallback_questions(self, claim: str, num_questions: int) -> List[str]:

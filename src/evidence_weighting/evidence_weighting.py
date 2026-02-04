@@ -9,7 +9,7 @@ class EvidenceWeighter:
         """
         # Load pre-computed bias profiles
         self.bias_profiles = self._load_bias_profiles()
-        print(f"✅ Evidence weighter loaded with {len(self.bias_profiles)} source profiles")
+        print(f" Evidence weighter loaded with {len(self.bias_profiles)} source profiles")
 
     def _load_bias_profiles(self) -> dict:
         """Load pre-computed bias profiles from bias detection pipeline"""
@@ -17,7 +17,7 @@ class EvidenceWeighter:
             with open("data/bias_profiles.json", 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("⚠️ Bias profiles not found. Using text-based analysis only.")
+            print(" Bias profiles not found. Using text-based analysis only.")
             return {}
 
     def _extract_domain(self, url: str) -> str:
@@ -177,7 +177,7 @@ class EvidenceWeighter:
             profile_credibility = 0.5 + (profile["confidence"] * 0.3)  # Range: 0.5-0.8
             base_credibility = max(base_credibility, profile_credibility)
 
-        # NEW: Add authority and recency weights for factual claims
+        # Add authority and recency weights for factual claims
         authority_weight = self._get_authority_weight(evidence_url)
         recency_weight = self._get_recency_weight(evidence) if evidence else 1.0
         
@@ -374,7 +374,7 @@ class VerdictGenerator:
         # Determine verdict
         max_score = max(support_pct, refute_pct, neutral_pct)
         
-        # NEW: Check if this is a factual claim
+        # Check if this is a factual claim
         is_factual = self._is_factual_claim(weighted_evidence)
         
         # Enhanced conflict detection considering bias
