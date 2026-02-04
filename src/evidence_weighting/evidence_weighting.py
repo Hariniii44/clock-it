@@ -382,15 +382,15 @@ class VerdictGenerator:
         high_bias_sources = sum(1 for alignment in bias_alignments if alignment > 0.5)
         bias_conflict_factor = high_bias_sources / len(weighted_evidence) if weighted_evidence else 0
         
-        # Adjust thresholds based on bias conflict and factual nature
+        # Adjust thresholds based on bias conflict and factual nature - less aggressive conflict detection
         if is_factual:
             # For factual claims, require stronger evidence for "conflicting" verdict
-            conflict_threshold = 0.4 + (bias_conflict_factor * 0.1)
-            min_opposing_threshold = 0.4  # Need significant opposing evidence
+            conflict_threshold = 0.25 + (bias_conflict_factor * 0.05)  # Reduced sensitivity
+            min_opposing_threshold = 0.35  # Slightly lower threshold
         else:
-            # For opinion/subjective claims, use original thresholds
-            conflict_threshold = 0.2 + (bias_conflict_factor * 0.1)
-            min_opposing_threshold = 0.3
+            # For opinion/subjective claims, use more permissive thresholds
+            conflict_threshold = 0.15 + (bias_conflict_factor * 0.05)  # Reduced sensitivity
+            min_opposing_threshold = 0.25  # Lower threshold
         
         # Enhanced verdict logic with better factual claim handling
         if is_factual:
@@ -405,28 +405,40 @@ class VerdictGenerator:
                         official_support_weight += item["weight"]
             
             # If official sources support the claim strongly, treat as supported
-            if official_support_weight > 0.5 and support_pct > refute_pct:
+            if official_support_weight > 0.4 and support_pct > refute_pct:
                 verdict = "SUPPORTED" 
-                confidence = min(0.8 + (official_support_weight - 0.5) * 0.4, 1.0)
-            elif support_pct > 0.6:
+                confidence = min(0.8 + (official_support_weight - 0.4) * 0.5, 1.0)
+            elif support_pct > 0.45:  # Lowered from 0.6 to 0.45
+                verdict = "SUPPORTED"
+                confidence = min(support_pct + diversity_boost + 0.1, 1.0)  # Small boost for decisiveness
+            elif refute_pct > 0.45:  # Lowered from 0.6 to 0.45
+                verdict = "REFUTED"
+                confidence = min(refute_pct + diversity_boost + 0.1, 1.0)  # Small boost for decisiveness
+            elif support_pct > refute_pct and support_pct > 0.35:  # More decisive for clear majority
                 verdict = "SUPPORTED"
                 confidence = support_pct + diversity_boost
-            elif refute_pct > 0.6:
+            elif refute_pct > support_pct and refute_pct > 0.35:  # More decisive for clear majority
                 verdict = "REFUTED"
                 confidence = refute_pct + diversity_boost
             else:
                 verdict = "UNCERTAIN"
                 confidence = max_score + diversity_boost
         else:
-            # Original logic for opinion/subjective claims
-            if (abs(support_pct - refute_pct) < conflict_threshold and 
-                min(support_pct, refute_pct) > min_opposing_threshold):
+            # Improved logic for opinion/subjective claims - less conflict-sensitive
+            if (abs(support_pct - refute_pct) < 0.15 and 
+                min(support_pct, refute_pct) > 0.4 and max_score < 0.6):  # Stricter conflict detection
                 verdict = "CONFLICTING"
                 confidence = (1 - abs(support_pct - refute_pct)) + diversity_boost
-            elif max_score == support_pct and support_pct > 0.4:
+            elif max_score == support_pct and support_pct > 0.35:  # Lowered from 0.4 to 0.35
+                verdict = "SUPPORTED"
+                confidence = min(support_pct + diversity_boost + 0.05, 1.0)
+            elif max_score == refute_pct and refute_pct > 0.35:  # Lowered from 0.4 to 0.35
+                verdict = "REFUTED"
+                confidence = min(refute_pct + diversity_boost + 0.05, 1.0)
+            elif support_pct > refute_pct and support_pct > 0.25:  # Additional fallback for weak support
                 verdict = "SUPPORTED"
                 confidence = support_pct + diversity_boost
-            elif max_score == refute_pct and refute_pct > 0.4:
+            elif refute_pct > support_pct and refute_pct > 0.25:  # Additional fallback for weak refutation
                 verdict = "REFUTED"
                 confidence = refute_pct + diversity_boost
             else:
