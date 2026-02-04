@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "claim": "Anura Kumara Dissanayake is the current President of Sri Lanka",
+    "true_label": "TRUE",
+    "category": "factual",
+    "subcategory": "government",
+    "difficulty": "easy",
+    "reasoning": "Factual information about current government leadership"
+  },
+  {
+    "id": 2,
+    "claim": "Mahinda Rajapaksa was the President of Sri Lanka from 2005 to 2015",
+    "true_label": "TRUE", 
+    "category": "historical",
+    "subcategory": "government",
+    "difficulty": "easy",
+    "reasoning": "Historical fact about past presidency"
+  },
+  {
+    "id": 3,
+    "claim": "Sri Lanka has 9 provinces",
+    "true_label": "TRUE",
+    "category": "factual",
+    "subcategory": "geography",
+    "difficulty": "medium",
+    "reasoning": "Administrative division fact"
+  },
+  {
+    "id": 4,
+    "claim": "Colombo is the capital city of Sri Lanka",
+    "true_label": "PARTIALLY_TRUE",
+    "category": "factual",
+    "subcategory": "geography", 
+    "difficulty": "medium",
+    "reasoning": "Colombo is commercial capital, Sri Jayawardenepura Kotte is administrative capital"
+  },
+  {
+    "id": 5,
+    "claim": "The 2019 Easter bombings killed over 250 people in Sri Lanka",
+    "true_label": "TRUE",
+    "category": "historical",
+    "subcategory": "tragedy",
+    "difficulty": "medium",
+    "reasoning": "Well-documented terrorist attack with confirmed casualty numbers"
+  },
+  {
+    "id": 6,
+    "claim": "Sri Lanka's GDP growth rate in 2023 was 15%",
+    "true_label": "FALSE",
+    "category": "factual",
+    "subcategory": "economy",
+    "difficulty": "hard",
+    "reasoning": "Sri Lanka was in economic crisis, growth rate was negative"
+  },
+  {
+    "id": 7,
+    "claim": "The Sinhalese make up about 75% of Sri Lanka's population",
+    "true_label": "TRUE",
+    "category": "factual",
+    "subcategory": "demographics",
+    "difficulty": "medium",
+    "reasoning": "Census data confirms this demographic breakdown"
+  },
+  {
+    "id": 8,
+    "claim": "Tamil is not an official language of Sri Lanka",
+    "true_label": "FALSE",
+    "category": "factual",
+    "subcategory": "language",
+    "difficulty": "medium",
+    "reasoning": "Both Sinhala and Tamil are official languages"
+  },
+  {
+    "id": 9,
+    "claim": "The current economic policies are effectively reducing inflation",
+    "true_label": "CONTROVERSIAL",
+    "category": "policy",
+    "subcategory": "economy",
+    "difficulty": "hard",
+    "reasoning": "Subjective assessment requiring current data and expert opinion"
+  },
+  {
+    "id": 10,
+    "claim": "Gotabaya Rajapaksa resigned as President in 2022",
+    "true_label": "TRUE",
+    "category": "historical",
+    "subcategory": "government",
+    "difficulty": "easy",
+    "reasoning": "Recent historical fact, well documented"
+  }
+]
