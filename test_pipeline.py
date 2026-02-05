@@ -205,7 +205,7 @@ if __name__ == "__main__":
     
     print()
     
-    print("▼ Detailed Analysis Available:")
+    print("Detailed Analysis Available:")
     print("    Evidence Breakdown")
     print("    Bias Analysis") 
     print("    Uncertainty Analysis")

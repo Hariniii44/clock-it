@@ -19,11 +19,11 @@ class BiasScorer:
             self.bias_matrix = np.array(data['bias_matrix'])
             self.sources = data['sources']
             
-            print(f"📂 Loaded bias matrix for {len(self.sources)} sources")
+            print(f"Loaded bias matrix for {len(self.sources)} sources")
             return True
             
         except FileNotFoundError:
-            print(f"❌ Please run Step 4 first to create bias matrix")
+            print(f"Please run Step 4 first to create bias matrix")
             return False
     
     def build_bias_graph(self) -> nx.DiGraph:
@@ -31,7 +31,7 @@ class BiasScorer:
         Build directed graph from bias matrix
         Following Algorithm 3 from the paper
         """
-        print("🔗 Building bias graph from matrix...")
+        print("Building bias graph from matrix...")
         
         # Create directed graph
         G = nx.DiGraph()
@@ -56,7 +56,7 @@ class BiasScorer:
                             G.add_edge(self.sources[i], self.sources[j], weight=abs(weight))
                         edges_added += 1
         
-        print(f"   ✅ Graph created: {len(G.nodes)} nodes, {len(G.edges)} edges")
+        print(f"   Graph created: {len(G.nodes)} nodes, {len(G.edges)} edges")
         return G
     
     def remove_cycles(self, G: nx.DiGraph) -> nx.DiGraph:
@@ -64,7 +64,7 @@ class BiasScorer:
         Remove cycles by eliminating edges with maximum weights
         Following Algorithm 3 from the paper
         """
-        print("🔄 Removing cycles from graph...")
+        print("Removing cycles from graph...")
         
         G_copy = G.copy()
         cycles_removed = 0
@@ -90,14 +90,14 @@ class BiasScorer:
                 # Remove the edge with maximum weight
                 if max_edge:
                     G_copy.remove_edge(max_edge[0], max_edge[1])
-                    print(f"   🗑️ Removed edge: {max_edge[0]} → {max_edge[1]} (weight: {max_weight:.3f})")
+                    print(f"   Removed edge: {max_edge[0]} → {max_edge[1]} (weight: {max_weight:.3f})")
                 
             except nx.NetworkXNoCycle:
                 # No more cycles found
                 break
         
-        print(f"   ✅ Removed {cycles_removed} cycles")
-        print(f"   📊 Final graph: {len(G_copy.nodes)} nodes, {len(G_copy.edges)} edges")
+        print(f"   Removed {cycles_removed} cycles")
+        print(f"   Final graph: {len(G_copy.nodes)} nodes, {len(G_copy.edges)} edges")
         
         return G_copy
     
@@ -106,19 +106,19 @@ class BiasScorer:
         Calculate final bias scores using topological sort
         Following Algorithm 3 from the paper
         """
-        print("🎯 Calculating final bias scores...")
+        print("Calculating final bias scores...")
         
         try:
             # Topological sort to get ordering
             topo_order = list(nx.topological_sort(G))
-            print(f"   📊 Topological order: {' → '.join(topo_order)}")
+            print(f"   Topological order: {' → '.join(topo_order)}")
             
             # Initialize bias scores
             bias_scores = {}
             
             # Set rightmost (most pro-government) node to 0
             bias_scores[topo_order[-1]] = 0.0
-            print(f"   🎯 Baseline (most pro-gov): {topo_order[-1]} = 0.0")
+            print(f"   Baseline (most pro-gov): {topo_order[-1]} = 0.0")
             
             # Calculate scores for remaining nodes (right to left)
             for i in range(len(topo_order) - 2, -1, -1):
@@ -157,17 +157,17 @@ class BiasScorer:
                     normalized = ((bias_scores[source] - min_score) / (max_score - min_score)) * 100 - 50
                     bias_scores[source] = normalized
             
-            print(f"   ✅ Calculated bias scores for {len(bias_scores)} sources")
+            print(f"   Calculated bias scores for {len(bias_scores)} sources")
             return bias_scores
             
         except Exception as e:
-            print(f"   ❌ Error in score calculation: {e}")
+            print(f"   Error in score calculation: {e}")
             # Fallback: use simple ranking
             return self.fallback_scoring()
     
     def fallback_scoring(self) -> Dict[str, float]:
         """Fallback scoring method if graph approach fails"""
-        print("⚠️ Using fallback scoring method...")
+        print("Using fallback scoring method...")
         
         # Calculate average bias for each source
         bias_scores = {}
@@ -187,19 +187,19 @@ class BiasScorer:
         for source, score in bias_scores.items():
             if score < -30:
                 interpretation = "Strong Opposition-leaning"
-                color = "🔴"
+                color = "RED"
             elif score < -10:
                 interpretation = "Opposition-leaning"
-                color = "🟠"
+                color = "ORANGE"
             elif score < 10:
                 interpretation = "Independent/Neutral"
-                color = "🟡"
+                color = "YELLOW"
             elif score < 30:
                 interpretation = "Pro-government"
-                color = "🟢"
+                color = "GREEN"
             else:
                 interpretation = "Strong Pro-government"
-                color = "🔵"
+                color = "BLUE"
             
             interpreted[source] = {
                 "bias_score": round(score, 2),
@@ -233,31 +233,30 @@ class BiasScorer:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(profiles, f, indent=2, ensure_ascii=False)
         
-        print(f"💾 Saved bias profiles to {filepath}")
+        print(f"Saved bias profiles to {filepath}")
     
     def print_results(self, interpreted_scores: Dict):
         """Print final bias analysis results"""
         print("\n" + "="*60)
-        print("🎯 FINAL BIAS ANALYSIS RESULTS")
+        print("FINAL BIAS ANALYSIS RESULTS")
         print("="*60)
         
         # Sort by bias score (most opposition to most pro-government)
         sorted_sources = sorted(interpreted_scores.items(), 
                                key=lambda x: x[1]['bias_score'])
         
-        print(f"\n📊 Source Bias Rankings (Opposition ← → Pro-Government):")
+        print(f"\nSource Bias Rankings (Opposition ← → Pro-Government):")
         print(f"{'Rank':<4} {'Source':<20} {'Score':<8} {'Interpretation'}")
         print("-" * 60)
         
         for rank, (source, data) in enumerate(sorted_sources, 1):
             score = data['bias_score']
             interpretation = data['interpretation']
-            color = data['color']
             
-            print(f"{rank:<4} {source:<20} {score:>+7.1f} {color} {interpretation}")
+            print(f"{rank:<4} {source:<20} {score:>+7.1f} {interpretation}")
         
         print("\n" + "="*60)
-        print("📈 INTERPRETATION GUIDE:")
+        print("INTERPRETATION GUIDE:")
         print("• Negative scores (-): Opposition-leaning coverage")
         print("• Positive scores (+): Pro-government coverage") 
         print("• Scores near 0: Independent/Neutral coverage")
@@ -289,5 +288,5 @@ if __name__ == "__main__":
     # Display results
     scorer.print_results(interpreted_scores)
     
-    print(f"\n🎯 Bias profiling complete! Results saved to data/bias_profiles.json")
-    print("✅ READY FOR INTEGRATION WITH FACT-CHECKING PIPELINE!")
+    print(f"\nBias profiling complete! Results saved to data/bias_profiles.json")
+    print("READY FOR INTEGRATION WITH FACT-CHECKING PIPELINE!")

@@ -6,7 +6,7 @@ TIER 1: FEVER Baseline - NLI Sanity Check (75-80% target)
 TIER 2: Sri Lankan Claims - Primary Domain Evaluation 
 TIER 3: Ablation Study - Bias-Weighting Impact Analysis
 
-This script implements a complete dissertation evaluation framework.
+This script implements a complete evaluation framework.
 """
 
 import json
@@ -220,7 +220,7 @@ class SriLankanClaimsDataset:
 
 class FinalEvaluationStrategy:
     """
-    Comprehensive three-tier evaluation strategy for bias-aware fact-checking dissertation
+    Comprehensive three-tier evaluation strategy for bias-aware fact-checking evaluation
     """
     
     def __init__(self):
@@ -260,7 +260,7 @@ class FinalEvaluationStrategy:
         """
         
         print("=" * 80)
-        print("COMPREHENSIVE DISSERTATION EVALUATION")
+        print("COMPREHENSIVE EVALUATION")
         print("Three-Tier Strategy for Bias-Aware Fact-Checking")
         print("=" * 80)
         
@@ -289,7 +289,7 @@ class FinalEvaluationStrategy:
         # TIER 2: Sri Lankan Claims (Primary Evaluation) 
         print(f"\n{'='*20} TIER 2: SRI LANKAN CLAIMS - PRIMARY EVALUATION {'='*20}")
         print("Purpose: Measure real-world domain performance")
-        print("This is your main dissertation contribution")
+        print("This is the main contribution")
         
         srilanka_results = self.evaluate_srilanka_claims()
         all_results['tier2_srilanka'] = srilanka_results
@@ -302,10 +302,10 @@ class FinalEvaluationStrategy:
         all_results['tier3_ablation'] = ablation_results
         
         # Generate comprehensive report
-        print(f"\n{'='*20} GENERATING DISSERTATION REPORT {'='*20}")
+        print(f"\n{'='*20} GENERATING REPORT {'='*20}")
         evaluation_time = (datetime.now() - evaluation_start).total_seconds()
         
-        report = self.generate_dissertation_report(all_results, evaluation_time)
+        report = self.generate_report(all_results, evaluation_time)
         
         print(f"\nEVALUATION COMPLETE")
         print(f"   Total Time: {evaluation_time:.1f}s")
@@ -394,7 +394,7 @@ class FinalEvaluationStrategy:
         claims = self.srilanka_dataset.load_annotated_claims()
         
         print(f"Processing {len(claims)} Sri Lankan claims...")
-        print("This is your PRIMARY evaluation - domain performance")
+        print("This is the primary evaluation - domain performance")
         
         detailed_results = []
         for claim_data in tqdm(claims, desc="Sri Lankan Claims"):
@@ -709,13 +709,13 @@ class FinalEvaluationStrategy:
             'synergy_detected': improvements['synergy'] > 0.05
         }
     
-    def generate_dissertation_report(self, all_results: Dict, total_time: float) -> Dict[str, Any]:
+    def generate_report(self, all_results: Dict, total_time: float) -> Dict[str, Any]:
         """
-        Generate comprehensive dissertation evaluation report
+        Generate comprehensive evaluation report
         """
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_file = os.path.join(self.results_dir, f'dissertation_evaluation_{timestamp}.json')
+        report_file = os.path.join(self.results_dir, f'evaluation_{timestamp}.json')
         
         # Prepare summary
         summary = {
@@ -775,7 +775,7 @@ class FinalEvaluationStrategy:
         
         # Print summary
         print(f"\n" + "="*80)
-        print("DISSERTATION EVALUATION SUMMARY")
+        print("EVALUATION SUMMARY")
         print("="*80)
         
         if 'tier1_fever_baseline' in summary:
@@ -808,7 +808,7 @@ class FinalEvaluationStrategy:
         return {"report": report, "report_file": report_file}
     
     def generate_conclusions(self, summary: Dict) -> List[str]:
-        """Generate key conclusions for dissertation"""
+        """Generate key conclusions"""
         
         conclusions = []
         
@@ -909,7 +909,7 @@ def main():
     """Run the comprehensive three-tier evaluation"""
     
     print("COMPREHENSIVE EVALUATION SYSTEM")
-    print("Three-Tier Strategy for Dissertation Validation")
+    print("Three-Tier Strategy for Validation")
     print()
     
     # Check dependencies

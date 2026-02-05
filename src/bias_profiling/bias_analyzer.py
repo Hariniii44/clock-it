@@ -10,14 +10,14 @@ warnings.filterwarnings('ignore')
 
 class BiasAnalyzer:
     def __init__(self):
-        print("🤖 Loading pre-trained ABSA model...")
+        print("Loading pre-trained ABSA model...")
         # Using a pre-trained ABSA model instead of training our own
         self.absa_model = pipeline(
             "text-classification",
             model="yangheng/deberta-v3-base-absa-v1.1",
             device=-1  # Use CPU (set to 0 for GPU)
         )
-        print("   ✅ ABSA model loaded successfully")
+        print("ABSA model loaded successfully")
         
         # Load politician lists
         self.load_politicians()
@@ -32,12 +32,12 @@ class BiasAnalyzer:
             self.government_politicians = set(pol_data['government'])
             self.opposition_politicians = set(pol_data['opposition'])
             
-            print(f"📝 Loaded {len(self.politicians)} politicians")
+            print(f"Loaded {len(self.politicians)} politicians")
             print(f"   Government: {len(self.government_politicians)} politicians")
             print(f"   Opposition: {len(self.opposition_politicians)} politicians")
             
         except FileNotFoundError:
-            print("❌ Please run Step 2 first to create politician database")
+            print("Please run Step 2 first to create politician database")
             raise
     
     def extract_sentences(self, text: str) -> List[str]:
@@ -142,7 +142,7 @@ class BiasAnalyzer:
         Calculate pairwise bias matrix between sources
         Following Algorithm 2 from the paper
         """
-        print(f"🎯 Analyzing bias across {len(article_groups)} article groups...")
+        print(f"Analyzing bias across {len(article_groups)} article groups...")
         
         # Get all unique sources
         all_sources = set()
@@ -154,7 +154,7 @@ class BiasAnalyzer:
         n_sources = len(sources)
         source_to_idx = {source: idx for idx, source in enumerate(sources)}
         
-        print(f"   📊 Analyzing {n_sources} sources: {sources}")
+        print(f"Analyzing {n_sources} sources: {sources}")
         
         # Initialize bias collection matrix
         bias_differences = defaultdict(list)
@@ -183,7 +183,7 @@ class BiasAnalyzer:
             
             processed_groups += 1
             if processed_groups % 200 == 0:
-                print(f"   🔄 Processed {processed_groups}/{len(article_groups)} groups")
+                print(f"Processed {processed_groups}/{len(article_groups)} groups")
         
         # Create final bias matrix by averaging differences
         bias_matrix = np.zeros((n_sources, n_sources))
@@ -195,8 +195,8 @@ class BiasAnalyzer:
                 avg_diff = np.mean(differences)
                 bias_matrix[idx1][idx2] = avg_diff
         
-        print(f"   ✅ Calculated bias matrix for {n_sources} sources")
-        print(f"   📊 Processed {processed_groups} valid groups")
+        print(f"Calculated bias matrix for {n_sources} sources")
+        print(f"Processed {processed_groups} valid groups")
         
         return bias_matrix, sources
     
@@ -211,7 +211,7 @@ class BiasAnalyzer:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
         
-        print(f"💾 Saved bias matrix to {filepath}")
+        print(f"Saved bias matrix to {filepath}")
     
     def load_bias_matrix(self, filepath: str) -> Tuple[np.ndarray, List[str]]:
         """Load bias matrix from file"""
@@ -222,16 +222,16 @@ class BiasAnalyzer:
             bias_matrix = np.array(data['bias_matrix'])
             sources = data['sources']
             
-            print(f"📂 Loaded bias matrix for {len(sources)} sources")
+            print(f"Loaded bias matrix for {len(sources)} sources")
             return bias_matrix, sources
             
         except FileNotFoundError:
-            print(f"❌ No saved bias matrix found at {filepath}")
+            print(f"No saved bias matrix found at {filepath}")
             return None, None
     
     def print_bias_matrix(self, bias_matrix: np.ndarray, sources: List[str]):
         """Print bias matrix in readable format"""
-        print(f"\n📊 Bias Matrix ({len(sources)}x{len(sources)}):")
+        print(f"\nBias Matrix ({len(sources)}x{len(sources)}):")
         print("Rows = Source A, Columns = Source B")
         print("Positive values = Source A more pro-government than Source B")
         print("Negative values = Source A more opposition-leaning than Source B\n")
@@ -257,7 +257,7 @@ if __name__ == "__main__":
             groups_data = json.load(f)
         
         article_groups = [group['articles'] for group in groups_data['groups']]
-        print(f"📂 Loaded {len(article_groups)} article groups from Step 3")
+        print(f"Loaded {len(article_groups)} article groups from Step 3")
         
         # Initialize bias analyzer
         analyzer = BiasAnalyzer()
@@ -268,7 +268,7 @@ if __name__ == "__main__":
         
         if bias_matrix is None:
             # Calculate new bias matrix
-            print(f"\n🎯 Calculating bias matrix...")
+            print(f"\nCalculating bias matrix...")
             bias_matrix, sources = analyzer.calculate_pairwise_bias(article_groups)
             
             # Save bias matrix
@@ -279,14 +279,14 @@ if __name__ == "__main__":
             # Display results
             analyzer.print_bias_matrix(bias_matrix, sources)
             
-            print(f"\n🎯 Ready for Step 5 (Graph-based scoring)")
-            print("\n✅ STEP 4 COMPLETE: Bias matrix calculated successfully!")
+            print(f"\nReady for Step 5 (Graph-based scoring)")
+            print("\nSTEP 4 COMPLETE: Bias matrix calculated successfully!")
         else:
-            print("\n❌ Failed to calculate bias matrix!")
+            print("\nFailed to calculate bias matrix!")
             
     except FileNotFoundError:
-        print("❌ Please run Step 3 first to create article groups")
+        print("Please run Step 3 first to create article groups")
     except Exception as e:
-        print(f"❌ Error in ABSA analysis: {e}")
+        print(f"Error in ABSA analysis: {e}")
         import traceback
         traceback.print_exc()

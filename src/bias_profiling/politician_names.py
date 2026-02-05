@@ -73,7 +73,7 @@ class SriLankanPoliticians:
         for politician in opposition_politicians:
             self.politicians[politician.lower()] = "opposition"
             
-        print(f"📝 Built politician database with {len(self.politicians)} names")
+        print(f"Built politician database with {len(self.politicians)} names")
         print(f"   Government: {sum(1 for p in self.politicians.values() if p == 'government')} politicians")
         print(f"   Opposition: {sum(1 for p in self.politicians.values() if p == 'opposition')} politicians")
     
@@ -101,11 +101,11 @@ class SriLankanPoliticians:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
-        print(f"💾 Saved politician names to {filepath}")
+        print(f"Saved politician names to {filepath}")
     
     def filter_political_articles(self, df: pd.DataFrame) -> pd.DataFrame:
         """Filter articles containing politician names"""
-        print(f"🔍 Filtering political articles from {len(df)} total articles...")
+        print(f"Filtering political articles from {len(df)} total articles...")
         
         # Create pattern for politician names
         politician_names = list(self.politicians.keys())
@@ -125,12 +125,12 @@ class SriLankanPoliticians:
         
         df_political = df[political_mask].copy()
         
-        print(f"   ✅ Found {len(df_political)} political articles")
-        print(f"   📊 Political coverage: {len(df_political)/len(df)*100:.1f}% of all articles")
+        print(f"   Found {len(df_political)} political articles")
+        print(f"   Political coverage: {len(df_political)/len(df)*100:.1f}% of all articles")
         
         # Show distribution by source
         if not df_political.empty:
-            print(f"\n📊 Political articles per source:")
+            print(f"\nPolitical articles per source:")
             source_counts = df_political['source'].value_counts()
             for source, count in source_counts.items():
                 percentage = count / len(df_political) * 100
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     # Load the filtered articles from Step 1
     try:
         df = pd.read_csv("data/filtered_english_articles.csv")
-        print(f"\n📂 Loaded {len(df)} articles from the LK news dataset")
+        print(f"\nLoaded {len(df)} articles from the LK news dataset")
         
         # Filter for political articles
         df_political = pol_db.filter_political_articles(df)
@@ -156,11 +156,11 @@ if __name__ == "__main__":
         # Save political articles
         if not df_political.empty:
             df_political.to_csv("data/political_articles.csv", index=False)
-            print(f"\n💾 Saved {len(df_political)} political articles to data/political_articles.csv")
-            print(f"\n🎯 Ready for Step 3 with {len(df_political)} political articles from {df_political['source'].nunique()} sources")
-            print("\n✅ STEP 2 COMPLETE: Political articles identified and saved!")
+            print(f"\nSaved {len(df_political)} political articles to data/political_articles.csv")
+            print(f"\nReady for Step 3 with {len(df_political)} political articles from {df_political['source'].nunique()} sources")
+            print("\nSTEP 2 COMPLETE: Political articles identified and saved!")
         else:
-            print("\n❌ No political articles found!")
+            print("\nNo political articles found!")
             
     except FileNotFoundError:
-        print("❌ Please run Step 1 first to create filtered_english_articles.csv")
+        print("Please run Step 1 first to create filtered_english_articles.csv")

@@ -43,7 +43,7 @@ class ArticleGrouper:
         Implementation of Algorithm 1 from the paper
         Groups articles discussing the same events from different sources
         """
-        print(f"🔗 Grouping {len(df)} political articles into related events...")
+        print(f"Grouping {len(df)} political articles into related events...")
         
         # Prepare data
         articles = []
@@ -60,7 +60,7 @@ class ArticleGrouper:
                     'url': row['url_metadata']
                 })
         
-        print(f"   📋 Processing {len(articles)} articles with valid headlines")
+        print(f"Processing {len(articles)} articles with valid headlines")
         
         # Create TF-IDF vectors for all headlines
         headlines = [article['headline'] for article in articles]
@@ -120,9 +120,9 @@ class ArticleGrouper:
                 group_count += 1
                 
                 if group_count % 100 == 0:
-                    print(f"   🔄 Created {group_count} groups, {len(remaining_articles)} articles remaining")
+                    print(f"Created {group_count} groups, {len(remaining_articles)} articles remaining")
         
-        print(f"   ✅ Created {len(article_groups)} article groups")
+        print(f"Created {len(article_groups)} article groups")
         self._print_group_statistics(article_groups)
         
         return article_groups
@@ -158,14 +158,14 @@ class ArticleGrouper:
             for source in sources_in_group:
                 source_coverage[source] += 1
         
-        print(f"\n📊 Group Statistics:")
+        print(f"\nGroup Statistics:")
         print(f"   Total groups: {len(article_groups)}")
         print(f"   Average group size: {np.mean(group_sizes):.1f} sources")
         print(f"   Median group size: {np.median(group_sizes):.0f} sources")
         print(f"   Largest group: {max(group_sizes)} sources")
         print(f"   Smallest group: {min(group_sizes)} sources")
         
-        print(f"\n📊 Source participation in groups:")
+        print(f"\nSource participation in groups:")
         for source, count in sorted(source_coverage.items()):
             percentage = count / len(article_groups) * 100
             print(f"   {source}: {count} groups ({percentage:.1f}%)")
@@ -190,7 +190,7 @@ class ArticleGrouper:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(groups_data, f, indent=2, ensure_ascii=False)
         
-        print(f"💾 Saved {len(article_groups)} article groups to {filepath}")
+        print(f"Saved {len(article_groups)} article groups to {filepath}")
     
     def load_groups(self, filepath: str) -> List[List[Dict]]:
         """Load article groups from JSON file"""
@@ -199,18 +199,18 @@ class ArticleGrouper:
                 data = json.load(f)
             
             article_groups = [group['articles'] for group in data['groups']]
-            print(f"📂 Loaded {len(article_groups)} article groups from {filepath}")
+            print(f"Loaded {len(article_groups)} article groups from {filepath}")
             return article_groups
             
         except FileNotFoundError:
-            print(f"❌ No saved groups found at {filepath}")
+            print(f"No saved groups found at {filepath}")
             return []
 
 if __name__ == "__main__":
     # Load political articles from Step 2
     try:
         df = pd.read_csv("data/political_articles.csv")
-        print(f"📂 Loaded {len(df)} political articles from Step 2")
+        print(f"Loaded {len(df)} political articles from Step 2")
         
         # Initialize grouper
         grouper = ArticleGrouper(similarity_threshold=0.25)  # Lower threshold for more groups
@@ -221,7 +221,7 @@ if __name__ == "__main__":
         
         if not article_groups:
             # Create new groups
-            print(f"\n🔗 Creating article groups...")
+            print(f"\nCreating article groups...")
             article_groups = grouper.group_related_articles(df)
             
             # Save groups
@@ -229,18 +229,18 @@ if __name__ == "__main__":
                 grouper.save_groups(article_groups, groups_path)
         
         if article_groups:
-            print(f"\n🎯 Ready for Step 4 with {len(article_groups)} article groups")
-            print("\n✅ STEP 3 COMPLETE: Article groups created successfully!")
+            print(f"\nReady for Step 4 with {len(article_groups)} article groups")
+            print("\nSTEP 3 COMPLETE: Article groups created successfully!")
             
             # Show a sample group
             if len(article_groups) > 0:
                 sample_group = article_groups[0]
-                print(f"\n📋 Sample group (Group 1):")
+                print(f"\nSample group (Group 1):")
                 for article in sample_group:
                     headline = article['headline'][:80] + "..." if len(article['headline']) > 80 else article['headline']
                     print(f"   {article['source']}: {headline}")
         else:
-            print("\n❌ No article groups created!")
+            print("\nNo article groups created!")
             
     except FileNotFoundError:
-        print("❌ Please run Step 2 first to create political_articles.csv")
+        print("Please run Step 2 first to create political_articles.csv")
