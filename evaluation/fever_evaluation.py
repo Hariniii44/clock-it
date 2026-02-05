@@ -6,6 +6,8 @@ import json
 import os
 import sys
 import random
+import time
+from datetime import datetime
 from typing import List, Dict, Any
 
 try:
@@ -13,7 +15,7 @@ try:
     DATASETS_AVAILABLE = True
 except ImportError:
     DATASETS_AVAILABLE = False
-    print("⚠️ datasets library not available. Install with: pip install datasets")
+    print("WARNING: datasets library not available. Install with: pip install datasets")
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -34,38 +36,54 @@ class FEVERDatasetLoader:
         
     def load_fever_from_huggingface(self, split: str = "dev", sample_size: int = 50) -> List[Dict]:
         """
-        Load FEVER dataset from Hugging Face with multiple fallback approaches
+        Load FEVER dataset from Hugging Face using the standard approach
         
         Args:
             split: Dataset split to use ('train', 'dev', 'test')
             sample_size: Number of examples to sample
         """
         try:
-            print(f"📦 Loading FEVER dataset from Hugging Face (split: {split})...")
+            print(f"Loading FEVER dataset from Hugging Face (split: {split})...")
             
-            # Try the official FEVER dataset approaches based on https://huggingface.co/datasets/fever/fever
+            # METHOD 1: Try the correct FEVER dataset format
             dataset_attempts = [
-                ("fever/fever", None),  # Official repository format
-                ("fever", None),        # Standard approach
-                ("fever", "v1.0"),      # Original with version
-                ("fever", "v2.0"),      # Try v2.0
-                ("kiltai/fever", None), # Alternative repo
+                ("fever", "v1.0", "validation"),  # Use validation split (has labels)
+                ("fever", "v1.0", "train"),       # Fallback to train
+                ("fever", "v2.0", "validation"),  # Try v2.0 
+                ("fever", None, "validation"),    # Without version
+                ("kilt_tasks", "fever", "validation"),  # KILT benchmark version
             ]
             
             dataset = None
-            for dataset_name, config in dataset_attempts:
+            for dataset_name, version, data_split in dataset_attempts:
                 try:
-                    print(f"   🔍 Trying {dataset_name} with config {config}...")
-                    if config:
-                        dataset = load_dataset(dataset_name, config, split=split, trust_remote_code=True)
+                    print(f"Trying {dataset_name} v{version} ({data_split})...")
+                    
+                    if version:
+                        dataset = load_dataset(dataset_name, version, split=data_split)
                     else:
-                        dataset = load_dataset(dataset_name, split=split, trust_remote_code=True)
-                    print(f"   ✅ Successfully loaded {dataset_name}")
+                        dataset = load_dataset(dataset_name, split=data_split)
+                        
+                    print(f"   Successfully loaded {dataset_name} v{version} ({data_split})")
+                    print(f"   Dataset size: {len(dataset)} examples")
                     break
                 except Exception as attempt_error:
-                    print(f"   ❌ Failed {dataset_name}: {str(attempt_error)[:100]}...")
+                    error_msg = str(attempt_error)
+                    if "trust_remote_code" in error_msg or "loading script" in error_msg:
+                        print(f"   FAILED {dataset_name}: Deprecated loading script")
+                    elif "ConnectionError" in error_msg or "timeout" in error_msg.lower():
+                        print(f"   FAILED {dataset_name}: Network issue")
+                    elif "Dataset 'fever' doesn't exist" in error_msg:
+                        print(f"   FAILED {dataset_name}: Dataset not found")
+                    else:
+                        print(f"   FAILED {dataset_name}: {error_msg[:100]}...")
                     continue
             
+            # METHOD 2: If Hugging Face fails, try direct download
+            if dataset is None:
+                print("\nTrying direct download from official FEVER source...")
+                dataset = self.download_fever_direct(split, sample_size)
+                
             if dataset is None:
                 raise Exception("All FEVER dataset loading attempts failed")
             
@@ -74,18 +92,70 @@ class FEVERDatasetLoader:
             print(f"Processing dataset with {len(dataset)} total examples...")
             
             for i, item in enumerate(dataset):
-                # Handle different possible field names
-                claim = item.get('claim') or item.get('text') or item.get('sentence')
-                label = item.get('label') or item.get('verdict') or item.get('classification')
-                item_id = item.get('id') or item.get('idx') or i
+                # Handle different possible field names including KILT format
+                claim = None
+                label = None
+                item_id = item.get('id') or item.get('idx') or str(i)
+                evidence = ''
+                
+                # KILT format handling
+                if 'input' in item and 'output' in item:
+                    claim = item['input']
+                    # Extract label from output (KILT format)
+                    if isinstance(item['output'], list) and len(item['output']) > 0:
+                        output_item = item['output'][0]
+                        if isinstance(output_item, dict):
+                            label = output_item.get('answer', '')
+                    elif isinstance(item['output'], dict):
+                        label = item['output'].get('answer', '')
+                    
+                    # Try meta field for label
+                    if not label and 'meta' in item:
+                        meta = item['meta']
+                        if isinstance(meta, dict):
+                            label = meta.get('label') or meta.get('verdict')
+                
+                # Standard format handling
+                if not claim:
+                    claim = item.get('claim') or item.get('text') or item.get('sentence')
+                if not label:
+                    label = item.get('label') or item.get('verdict') or item.get('classification')
+                
                 evidence = item.get('evidence') or item.get('wiki_evidence') or ''
                 
+                # Debug: print first few items to see structure
+                if i < 3:
+                    print(f"   Sample item {i}: {list(item.keys())}")
+                    if 'input' in item:
+                        print(f"       input (claim): {str(item['input'])[:100]}")
+                    if 'output' in item:
+                        print(f"       output: {item['output']}")
+                    if 'meta' in item:
+                        print(f"       meta: {item.get('meta', {})}")
+                    print(f"       extracted claim: {str(claim)[:100] if claim else 'None'}")
+                    print(f"       extracted label: {label}")
+                
+                # Normalize label format
+                if label is not None:
+                    label_str = str(label).upper().strip()
+                    # Handle various label formats
+                    if label_str in ['SUPPORTS', 'SUPPORT', 'TRUE', 'ENTAILS', 'ENTAILMENT']:
+                        label_str = 'SUPPORTS'
+                    elif label_str in ['REFUTES', 'REFUTE', 'FALSE', 'CONTRADICTS', 'CONTRADICTION']:
+                        label_str = 'REFUTES'
+                    elif label_str in ['NOT_ENOUGH_INFO', 'NEI', 'NOT ENOUGH INFO', 'NEUTRAL']:
+                        label_str = 'NOT_ENOUGH_INFO'
+                else:
+                    label_str = None
+                
                 # Filter for SUPPORTS and REFUTES only (exclude NOT_ENOUGH_INFO for cleaner eval)
-                if label and str(label).upper() in ['SUPPORTS', 'REFUTES']:
+                if (claim is not None and claim.strip() and 
+                    label_str in ['SUPPORTS', 'REFUTES']):
+                    
                     filtered_data.append({
                         "id": item_id,
-                        "claim": claim,
-                        "label": str(label).upper(),
+                        "claim": str(claim).strip(),
+                        "label": label_str,
                         "evidence": str(evidence) if evidence else ''
                     })
                     
@@ -95,20 +165,99 @@ class FEVERDatasetLoader:
             if not filtered_data:
                 raise Exception("No valid FEVER examples found with SUPPORTS/REFUTES labels")
             
-            print(f"Loaded {len(filtered_data)} FEVER examples with definitive labels")
+            print(f"Successfully loaded {len(filtered_data)} FEVER examples with definitive labels")
             return filtered_data
             
         except Exception as e:
-            print(f"Failed to load FEVER from Hugging Face: {e}")
-            print("Let's try a direct approach with a known working dataset...")
+            print(f"WARNING: Failed to load FEVER from Hugging Face: {e}")
+            print("Falling back to curated fact-checking claims...")
             return self.load_alternative_fever_data()
+    
+    def download_fever_direct(self, split: str = "dev", sample_size: int = 50) -> List[Dict]:
+        """
+        METHOD 2: Direct download from official FEVER source
+        """
+        try:
+            import urllib.request
+            import tempfile
+            import json
+            
+            print("   Downloading FEVER dataset from official source...")
+            
+            # Official FEVER URLs
+            fever_urls = {
+                "dev": "https://fever.ai/download/fever/shared_task_dev.jsonl",
+                "validation": "https://fever.ai/download/fever/shared_task_dev.jsonl",
+                "train": "https://fever.ai/download/fever/train.jsonl",
+            }
+            
+            # Map split names
+            download_split = "dev" if split in ["dev", "validation"] else split
+            
+            if download_split not in fever_urls:
+                print(f"   ERROR: Split '{split}' not available for direct download")
+                return None
+            
+            url = fever_urls[download_split]
+            
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.jsonl') as tmp_file:
+                tmp_path = tmp_file.name
+            
+            print(f"   Downloading from: {url}")
+            urllib.request.urlretrieve(url, tmp_path)
+            
+            # Parse JSONL file
+            fever_data = []
+            with open(tmp_path, 'r', encoding='utf-8') as f:
+                for i, line in enumerate(f):
+                    if i >= sample_size:
+                        break
+                    
+                    try:
+                        item = json.loads(line.strip())
+                        
+                        # Extract fields
+                        claim = item.get('claim', '')
+                        label = item.get('label', '')
+                        item_id = item.get('id', str(i))
+                        evidence = item.get('evidence', [])
+                        
+                        # Filter for SUPPORTS and REFUTES
+                        if label and str(label).upper() in ['SUPPORTS', 'REFUTES']:
+                            fever_data.append({
+                                "id": item_id,
+                                "claim": claim,
+                                "label": str(label).upper(),
+                                "evidence": evidence
+                            })
+                        
+                        if len(fever_data) >= sample_size:
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Cleanup
+            os.unlink(tmp_path)
+            
+            if fever_data:
+                print(f"   Successfully downloaded {len(fever_data)} FEVER examples")
+                return fever_data
+            else:
+                print(f"   ERROR: No valid data found in downloaded file")
+                return None
+                
+        except Exception as e:
+            print(f"   ERROR: Direct download failed: {e}")
+            return None
     
     def load_alternative_fever_data(self) -> List[Dict]:
         """
         Curated fact-checking claims as fallback when FEVER dataset fails
         """
         try:
-            print("🔄 Using curated fact-checking claims as fallback...")
+            print("Using curated fact-checking claims as fallback...")
             
             # Curated fact-checking claims with clear factual assertions
             factual_claims = [
@@ -174,11 +323,11 @@ class FEVERDatasetLoader:
                 }
             ]
             
-            print(f"✅ Using {len(factual_claims)} curated fact-checking claims")
+            print(f"Using {len(factual_claims)} curated fact-checking claims")
             return factual_claims
             
         except Exception as backup_error:
-            print(f"⚠️ Fallback data creation failed: {backup_error}")
+            print(f"WARNING: Fallback data creation failed: {backup_error}")
             return self.load_fever_fallback_data()
     
     def load_fever_fallback_data(self) -> List[Dict]:
@@ -444,17 +593,33 @@ def run_fever_evaluation(sample_size: int = 10, use_huggingface: bool = True, da
     }
     
     print(f"Components initialized")
-    print(f"Processing {len(fever_claims)} claims...\n")
+    print(f"Processing {len(fever_claims)} claims...")
+    print(f"Estimated time: {len(fever_claims) * 15 / 60:.1f} - {len(fever_claims) * 25 / 60:.1f} minutes")
+    print()
+    
+    # Timing
+    start_time = datetime.now()
     
     # Evaluate all claims
     results = []
     for i, claim_data in enumerate(fever_claims, 1):
-        print(f"\nFEVER EVALUATION {i}/{len(fever_claims)}")
+        claim_start = time.time()
+        print(f"\nFEVER EVALUATION {i}/{len(fever_claims)} (Progress: {i/len(fever_claims)*100:.1f}%)")
         result = evaluate_fever_claim(claim_data, components)
         results.append(result)
+        
+        # Progress tracking
+        claim_time = time.time() - claim_start
+        elapsed_total = (datetime.now() - start_time).total_seconds() / 60
+        avg_time = elapsed_total * 60 / i  # seconds per claim
+        remaining_claims = len(fever_claims) - i
+        eta_minutes = (remaining_claims * avg_time) / 60
+        
+        print(f"Claim processed in {claim_time:.1f}s | Avg: {avg_time:.1f}s/claim | ETA: {eta_minutes:.1f}min")
         print("-" * 80)
     
     # Calculate comprehensive metrics
+    total_time = (datetime.now() - start_time).total_seconds() / 60  # minutes
     metrics = FEVERMetrics.calculate_metrics(results)
     
     # Display results
@@ -462,6 +627,8 @@ def run_fever_evaluation(sample_size: int = 10, use_huggingface: bool = True, da
     print(f"   Total Claims: {len(results)}")
     print(f"   Valid Results: {metrics['total_samples']}")
     print(f"   Errors: {metrics['errors']}")
+    print(f"   Total Time: {total_time:.1f} minutes ({total_time/60:.1f} hours)")
+    print(f"   Average Time per Claim: {total_time*60/len(results):.1f} seconds")
     print(f"   Overall Accuracy: {metrics['accuracy']:.1%}")
     print(f"   Macro F1-Score: {metrics['macro_f1']:.3f}")
     print(f"   Macro Precision: {metrics['macro_precision']:.3f}")
@@ -493,17 +660,19 @@ def run_fever_evaluation(sample_size: int = 10, use_huggingface: bool = True, da
         print(f"   High Confidence Accuracy (>80%): {high_conf_correct}/{high_conf_total} = {(high_conf_correct/high_conf_total*100) if high_conf_total > 0 else 0:.1f}%")
         
         # Compare to other evaluations
-        print(f"\nCOMPARISON WITH OTHER EVALUATIONS:")
-        print(f"   Ground Truth (21 claims): 61.9% accuracy")
-        print(f"   FactCheck.lk (6 claims): 0.0% accuracy") 
+        # print(f"\nCOMPARISON WITH OTHER EVALUATIONS:")
+        # print(f"   Ground Truth (21 claims): 61.9% accuracy")
+        # print(f"   FactCheck.lk (6 claims): 0.0% accuracy") 
         print(f"   FEVER Sample ({len(valid_results)} claims): {metrics['accuracy']:.1%} accuracy")
     
     # Save results
     results_file = os.path.join(os.path.dirname(__file__), 'fever_evaluation_results.json')
     with open(results_file, 'w') as f:
         json.dump({
-            'evaluation_date': '2026-02-04',
+            'evaluation_date': '2026-02-05',
             'sample_size': len(results),
+            'total_time_minutes': total_time,
+            'avg_time_per_claim_seconds': total_time*60/len(results) if results else 0,
             'metrics': metrics,
             'detailed_results': results
         }, f, indent=2)
@@ -511,13 +680,14 @@ def run_fever_evaluation(sample_size: int = 10, use_huggingface: bool = True, da
     print(f"\nResults saved to: {results_file}")
 
 if __name__ == "__main__":
-    # Test with small sample first
-    sample_size = 10  # Start with just 10 claims for testing
+    # Run with 300 claims for robust evaluation
+    sample_size = 300  # Good balance of statistical significance and runtime
     use_hf = True  # Try Hugging Face dataset first
     split = "dev"  # Use dev split for evaluation
     
-    print("FEVER Evaluation - Testing Configuration")
-    print(f"   Sample Size: {sample_size} (small test)")
+    print("FEVER Evaluation - 300 Claims for Robust Assessment")
+    print(f"   Sample Size: {sample_size} claims")
+    print(f"   Estimated Runtime: 1.25 - 2.5 hours")
     print(f"   Datasets Library Available: {DATASETS_AVAILABLE}")
     print(f"   Will use Hugging Face: {use_hf and DATASETS_AVAILABLE}")
     print()
