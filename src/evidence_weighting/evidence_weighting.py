@@ -100,10 +100,23 @@ class EvidenceWeighter:
         
         return min(alignment, 1.0)
     
-    def _get_authority_weight(self, evidence_url: str) -> float:
+    def _get_authority_weight(self, evidence_url: str, dataset_source: str = None) -> float:
         """
         Calculate authority weight based on source type
         """
+
+        # Handle dataset sources (highest authority)
+        if dataset_source:
+            dataset_authority = {
+                'hansard': 3.0,      # Parliamentary debates - highest authority
+                'pmd': 2.8,          # Presidential statements
+                'cabinet': 2.8,      # Cabinet decisions
+                'supreme_court': 2.9, # Legal authority
+                'central_bank': 2.7, # Economic authority
+                'news': 1.5          # News varies by source
+            }
+            return dataset_authority.get(dataset_source, 2.0)
+
         if not evidence_url:
             return 1.0
             
@@ -231,6 +244,10 @@ class EvidenceWeighter:
         """Enhanced explanation including source profile information"""
         domain = self._extract_domain(evidence_url) if evidence_url else None
         
+        # Special handling for parliamentary sources
+        if domain == 'parliament.lk':
+            return f"Official parliamentary source (parliament.lk) - highest authority. Weight: {weight:.2f}"
+        
         # Check if we have source profile
         if domain and domain in self.bias_profiles:
             source_profile = self.bias_profiles[domain]
@@ -254,8 +271,11 @@ class EvidenceWeighter:
                     f"on this claim. Weight: {weight:.2f}."
                 )
         else:
-            # Fallback for unknown sources
-            return f"Unknown source - using text-based analysis only. Weight: {weight:.2f}"
+            # Enhanced fallback for unknown sources
+            if domain:
+                return f"Source {domain} - no bias profile available. Weight: {weight:.2f}"
+            else:
+                return f"Unknown source - using text-based analysis only. Weight: {weight:.2f}"
 
     def get_source_diversity_score(self, evidence_list: List[Dict]) -> float:
         """

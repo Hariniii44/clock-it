@@ -20,3 +20,10 @@ python-dotenv>=1.0.0           # Environment variables
 
 # Progress tracking (optional but recommended)
 tqdm>=4.64.0                   # Progress bars
+
+faiss-cpu>=1.9.0
+sentence-transformers==2.2.2
+datasets==2.16.1
+pandas==2.0.3
+numpy==1.24.3
+tqdm==4.65.0

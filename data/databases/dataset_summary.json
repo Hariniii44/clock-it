@@ -1,0 +1,12 @@
+{
+  "news": {
+    "document_count": 0,
+    "authority_weight": 0.7,
+    "description": "Sri Lankan news articles",
+    "sample_titles": []
+  },
+  "total_documents": 0,
+  "datasets_loaded": [
+    "news"
+  ]
+}

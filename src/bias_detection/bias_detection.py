@@ -73,33 +73,60 @@ class BiasDetector:
         """
         Comprehensive bias analysis combining pre-computed profiles and real-time analysis
         """
-        # Get pre-computed bias profile if available
-        source_profile = self.get_source_bias_profile(url) if url else {"has_profile": False}
-        
-        # Perform real-time text analysis
-        text_analysis = self._analyze_text_bias(text)
-        
-        # Combine both analyses
-        combined_analysis = {
-            "source_profile": source_profile,
-            "text_analysis": text_analysis,
-            "combined_score": self._combine_bias_scores(source_profile, text_analysis)
-        }
-        
-        # For backward compatibility, maintain original structure
-        combined_analysis.update(text_analysis)
-        
-        return combined_analysis
+        try:
+            # Get pre-computed bias profile if available
+            source_profile = self.get_source_bias_profile(url) if url else {"has_profile": False}
+            
+            # Perform real-time text analysis with safety checks
+            text_analysis = self._analyze_text_bias(text)
+            
+            # Combine both analyses
+            combined_analysis = {
+                "source_profile": source_profile,
+                "text_analysis": text_analysis,
+                "combined_score": self._combine_bias_scores(source_profile, text_analysis)
+            }
+            
+            # For backward compatibility, maintain original structure
+            combined_analysis.update(text_analysis)
+            
+            return combined_analysis
+            
+        except Exception as e:
+            # Graceful fallback for parliamentary sources or other errors
+            print(f"⚠️ Bias analysis failed: {e}")
+            return {
+                'emotional_tone': {'emotion': 'neutral', 'emotion_score': 0.0},
+                'framing_bias': {'framing_type': 'neutral', 'framing_score': 0.0},
+                'source_profile': {'has_profile': False},
+                'combined_score': {'method': 'fallback', 'overall_bias': 0.0}
+            }
     
     def _analyze_text_bias(self, text: str) -> Dict:
-        """Original text-based bias analysis"""
+        """Original text-based bias analysis with enhanced safety checks"""
         if not text or len(text.strip()) == 0:
             return self._default_bias_analysis()
         
-        # Truncate text to model's maximum length
-        text = text[:512]
-        
         try:
+            # More aggressive text truncation to prevent tensor issues
+            # RoBERTa tokenizer creates ~1.3 tokens per word on average
+            words = text.split()
+            if len(words) > 300:  # Even more conservative limit
+                text = ' '.join(words[:300])
+            
+            # Character limit as additional safety
+            if len(text) > 1500:
+                text = text[:1500]
+            
+            # Clean text to remove special characters that may cause tokenization issues
+            import re
+            text = re.sub(r'[^\w\s.,!?-]', ' ', text)
+            text = ' '.join(text.split())  # Remove extra whitespace
+            
+            # Skip analysis if text is too short after cleaning
+            if len(text.strip()) < 10:
+                return self._default_bias_analysis()
+            
             # Sentiment analysis
             sentiment_result = self.sentiment_model(text)[0]
             sentiment_label = sentiment_result['label'].lower()
@@ -131,7 +158,7 @@ class BiasDetector:
             }
             
         except Exception as e:
-            print(f"⚠️ Bias analysis failed: {e}")
+            print(f" Text bias analysis failed: {e}")
             return self._default_bias_analysis()
     
     def _combine_bias_scores(self, source_profile: Dict, text_analysis: Dict) -> Dict:

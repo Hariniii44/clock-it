@@ -1,5 +1,6 @@
 import spacy
 import requests
+import pandas as pd
 from typing import List, Dict, Set
 import re
 from datetime import datetime
@@ -409,4 +410,139 @@ class AdvancedEvidenceRetriever:
         except Exception as e:
             print(f"Relevance scoring failed: {e}")
             return evidence_list[:top_k]  # Fallback
+
+    def retrieve_with_hansard_fallback(self, claim: str, num_results: int = 10) -> List[Dict]:
+        """
+        Use DatasetManager as primary source for Sri Lankan parliamentary content
+        """
+        print(f" Searching parliamentary and news databases...")
+        
+        try:
+            # Import and initialize DatasetManager
+            from src.database_retrieval.dataset_manager import DatasetManager
+            db_manager = DatasetManager()
+            
+            # Load hansard dataset (parliamentary debates)
+            hansard_df = db_manager.get_dataset('hansard')
+            if hansard_df is None or len(hansard_df) == 0:
+                print(f"  Loading hansard dataset...")
+                hansard_df = db_manager.download_dataset('hansard', max_samples=500)  # Increase sample size
+            
+            print(f"  Hansard dataset: {len(hansard_df)} parliamentary chunks available")
+            
+            # Search in parliamentary content
+            parliamentary_results = self._search_parliamentary_content(claim, hansard_df, max_results=num_results)
+            
+            print(f" Found {len(parliamentary_results)} relevant parliamentary references")
+            
+            # Display top matches for debugging
+            for i, result in enumerate(parliamentary_results[:3], 1):
+                print(f"      {i}. {result['title'][:80]}... (score: {result['relevance_score']:.3f})")
+            
+            return parliamentary_results
+            
+        except Exception as e:
+            print(f"  Parliamentary database search failed: {e}")
+            return []
+
+    def _search_parliamentary_content(self, claim: str, hansard_df: pd.DataFrame, max_results: int = 10) -> List[Dict]:
+        """
+        Search parliamentary hansard content for claim verification
+        """
+        import pandas as pd
+        from difflib import SequenceMatcher
+        
+        claim_lower = claim.lower()
+        claim_keywords = self._extract_claim_keywords(claim)
+        
+        scored_results = []
+        
+        print(f"  Searching {len(hansard_df)} parliamentary chunks for: '{claim[:50]}...'")
+        
+        for _, row in hansard_df.iterrows():
+            chunk_text = str(row.get('text', ''))  # text is standardized to chunk_text
+            title = str(row.get('title', ''))
+            date = str(row.get('date', ''))
+            chunk_id = str(row.get('url', ''))  # url is mapped to doc_id
+            
+            # Calculate parliamentary relevance
+            relevance_score = self._calculate_parliamentary_relevance(
+                claim_lower, chunk_text.lower(), title.lower(), claim_keywords
+            )
+            
+            if relevance_score > 0.1:  # Lower threshold for parliamentary content
+                scored_results.append({
+                    'title': f"Parliamentary Debate - {date}" if date else "Parliamentary Debate",
+                    'snippet': chunk_text[:400] + "..." if len(chunk_text) > 400 else chunk_text,
+                    'source': 'Sri Lanka Parliament (Hansard)',
+                    'link': f"parliament.lk/hansard/{chunk_id}",
+                    'date': date,
+                    'relevance_score': relevance_score,
+                    'source_alignment': 'official_primary',  # Highest authority
+                    'dataset_source': 'hansard'
+                })
+        
+        # Sort by relevance
+        scored_results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        print(f" Parliamentary search complete: {len(scored_results)} relevant chunks found")
+        return scored_results[:max_results]
+
+    def _calculate_parliamentary_relevance(self, claim: str, content: str, title: str, keywords: List[str]) -> float:
+        """
+        Calculate relevance for parliamentary content
+        """
+        score = 0.0
+        
+        # 1. Direct keyword matching (weighted for parliamentary context)
+        for keyword in keywords:
+            if keyword in content:
+                # Count occurrences but cap contribution
+                count = content.count(keyword)
+                score += min(count * 0.15, 0.4)
+        
+        # 2. Parliamentary context boost
+        parliamentary_terms = [
+            'president', 'minister', 'government', 'parliament', 'member',
+            'budget', 'bill', 'motion', 'debate', 'committee', 'policy',
+            'sri lanka', 'country', 'people', 'nation'
+        ]
+        
+        for term in parliamentary_terms:
+            if term in content:
+                score += 0.1
+        
+        # 3. Question/answer patterns (common in parliamentary debates)
+        if any(pattern in content for pattern in ['question:', 'answer:', 'hon.', 'minister of']):
+            score += 0.2
+        
+        # 4. Phrase similarity for longer claims
+        if len(claim) > 20:
+            from difflib import SequenceMatcher
+            similarity = SequenceMatcher(None, claim, content[:200]).ratio()
+            score += similarity * 0.3
+        
+        return min(score, 1.0)
+
+    def _extract_claim_keywords(self, claim: str) -> List[str]:
+        """Extract meaningful keywords from claim for parliamentary search"""
+        import re
+        
+        # Remove common question words and extract meaningful terms
+        words = re.findall(r'\b\w+\b', claim.lower())
+        
+        stop_words = {
+            'is', 'are', 'was', 'were', 'has', 'have', 'had', 'do', 'does', 'did',
+            'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must',
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'from', 'giving', 'reason', 'reasons', 'why'
+        }
+        
+        keywords = [word for word in words if len(word) > 2 and word not in stop_words]
+        
+        # Boost Sri Lankan context terms
+        if 'sri' in keywords and 'lanka' in keywords:
+            keywords = ['sri lanka'] + [w for w in keywords if w not in ['sri', 'lanka']]
+        
+        return keywords[:8]  # Top 8 keywords
 
