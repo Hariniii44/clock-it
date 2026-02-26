@@ -413,37 +413,172 @@ class AdvancedEvidenceRetriever:
 
     def retrieve_with_hansard_fallback(self, claim: str, num_results: int = 10) -> List[Dict]:
         """
-        Use DatasetManager as primary source for Sri Lankan parliamentary content
+        ENHANCED: Use comprehensive DatasetManager with PMD routing as primary source
         """
-        print(f" Searching parliamentary and news databases...")
+        print(f"🔍 Searching enhanced government databases (PMD, Cabinet, Parliament, Courts)...")
         
         try:
-            # Import and initialize DatasetManager
+            # Import and initialize enhanced DatasetManager
             from src.database_retrieval.dataset_manager import DatasetManager
             db_manager = DatasetManager()
             
-            # Load hansard dataset (parliamentary debates)
-            hansard_df = db_manager.get_dataset('hansard')
-            if hansard_df is None or len(hansard_df) == 0:
-                print(f"  Loading hansard dataset...")
-                hansard_df = db_manager.download_dataset('hansard', max_samples=500)  # Increase sample size
+            # Load priority datasets based on claim type
+            priority_datasets = ['pmd_press_releases', 'pmd_press_release', 'cabinet_decisions', 'hansard', 'supreme_court']
             
-            print(f"  Hansard dataset: {len(hansard_df)} parliamentary chunks available")
+            loaded_datasets = 0
+            for dataset_key in priority_datasets:
+                try:
+                    dataset = db_manager.get_dataset(dataset_key)
+                    if dataset is None or len(dataset) == 0:
+                        print(f"   📥 Loading {dataset_key} dataset...")
+                        dataset = db_manager.download_dataset(dataset_key, max_samples=200)
+                        if len(dataset) > 0:
+                            loaded_datasets += 1
+                            print(f"   ✅ {dataset_key}: {len(dataset)} documents")
+                    else:
+                        loaded_datasets += 1
+                        print(f"   📋 {dataset_key}: {len(dataset)} documents (cached)")
+                        
+                except Exception as e:
+                    print(f"   ❌ Failed to load {dataset_key}: {str(e)[:100]}...")
             
-            # Search in parliamentary content
-            parliamentary_results = self._search_parliamentary_content(claim, hansard_df, max_results=num_results)
+            print(f"🗂️  Successfully loaded {loaded_datasets} datasets")
             
-            print(f" Found {len(parliamentary_results)} relevant parliamentary references")
+            if loaded_datasets == 0:
+                print("⚠️  No datasets available, falling back to web search")
+                return []
             
-            # Display top matches for debugging
-            for i, result in enumerate(parliamentary_results[:3], 1):
-                print(f"      {i}. {result['title'][:80]}... (score: {result['relevance_score']:.3f})")
+            # Use enhanced hybrid search (semantic + keyword)
+            print(f"🔎 Performing enhanced search with claim routing...")
             
-            return parliamentary_results
+            # Try hybrid search first (combines semantic + keyword search)
+            try:
+                database_results = db_manager.hybrid_search_datasets(
+                    query=claim, 
+                    max_results=num_results,
+                    claim=claim  # This enables claim routing
+                )
+                print(f"🎯 Hybrid search found {len(database_results)} results")
+                
+            except Exception as e:
+                print(f"⚠️  Hybrid search failed ({e}), using keyword search...")
+                # Fallback to enhanced keyword search with routing
+                database_results = db_manager.search_datasets(
+                    query=claim, 
+                    max_results=num_results,
+                    claim=claim
+                )
+                print(f"🔍 Keyword search found {len(database_results)} results")
+            
+            # Convert database results to consistent format
+            formatted_results = []
+            for result in database_results:
+                formatted_result = {
+                    'title': result['title'],
+                    'snippet': result['snippet'],
+                    'source': f"Sri Lanka Government Database - {result['source']}",
+                    'link': result['link'],
+                    'date': result.get('date', ''),
+                    'authority_weight': result['authority_weight'],
+                    'relevance_score': result.get('final_score', result.get('similarity_score', result.get('relevance_score', 0.5))),
+                    'search_method': result.get('search_method', 'database'),
+                    'dataset_source': result['dataset_source']
+                }
+                formatted_results.append(formatted_result)
+            
+            # Display top matches 
+            print(f"🏆 Top database matches:")
+            for i, result in enumerate(formatted_results[:3], 1):
+                search_type = result.get('search_method', 'keyword')
+                score = result['relevance_score']
+                dataset = result['dataset_source'].replace('_', ' ').title()
+                print(f"   {i}. {result['title'][:70]}...")
+                print(f"      📊 {dataset} | {search_type} | Score: {score:.3f}")
+            
+            return formatted_results
             
         except Exception as e:
-            print(f"  Parliamentary database search failed: {e}")
+            print(f"💥 Enhanced database search failed: {e}")
+            import traceback
+            traceback.print_exc()
             return []
+    
+    def retrieve_evidence_dataset_first(self, claim: str, num_results: int = 20) -> List[Dict]:
+        """
+        NEW: Dataset-first evidence retrieval with Serper fallback
+        This is the main method that prioritizes authoritative datasets over web search
+        """
+        print(f"🚀 DATASET-FIRST Evidence Retrieval for: '{claim[:60]}...'")
+        print(f"🎯 Target results: {num_results}")
+        
+        all_results = []
+        
+        # STEP 1: Search Enhanced Government Datasets (PRIMARY)
+        print(f"\\n📊 STEP 1: Searching Government Databases...")
+        database_results = self.retrieve_with_hansard_fallback(claim, num_results=num_results//2)
+        
+        if len(database_results) > 0:
+            print(f"✅ Found {len(database_results)} authoritative database results")
+            all_results.extend(database_results)
+            
+            # If we have good database results, we may not need web search
+            high_quality_results = [r for r in database_results if r['relevance_score'] > 0.4]
+            
+            if len(high_quality_results) >= num_results//2:
+                print(f"🎯 Sufficient high-quality database results found ({len(high_quality_results)})")
+                print(f"   Skipping web search to prioritize authoritative sources")
+                return all_results[:num_results]
+        else:
+            print(f"⚠️  No database results found")
+        
+        # STEP 2: Web Search Fallback (SECONDARY)
+        remaining_results = num_results - len(all_results)
+        if remaining_results > 0:
+            print(f"\\n🌐 STEP 2: Web Search Fallback ({remaining_results} additional results needed)...")
+            
+            try:
+                # Use decomposed search for better coverage
+                web_results = self.retrieve_hybrid_serper_decomposition(
+                    claim, 
+                    num_results=remaining_results,
+                    results_per_query=5
+                )
+                
+                # Mark web results and lower their authority
+                for result in web_results:
+                    result['source'] = f"Web Search - {result.get('source', 'Unknown')}"
+                    result['authority_weight'] = result.get('authority_weight', 0.5) * 0.8  # Reduce web authority
+                    result['search_method'] = 'web_fallback'
+                
+                all_results.extend(web_results[:remaining_results])
+                print(f"✅ Added {len(web_results[:remaining_results])} web search results")
+                
+            except Exception as e:
+                print(f"❌ Web search fallback failed: {e}")
+        
+        # STEP 3: Final Processing
+        print(f"\\n🔄 STEP 3: Final Processing...")
+        
+        # Deduplicate and re-rank
+        all_results = self._advanced_deduplication(all_results)
+        
+        # Re-sort by authority weight and relevance (database results naturally rank higher)
+        all_results.sort(key=lambda x: (
+            x.get('authority_weight', 0.5) * x.get('relevance_score', 0.5)
+        ), reverse=True)
+        
+        final_results = all_results[:num_results]
+        
+        # Summary
+        database_count = sum(1 for r in final_results if r.get('search_method') != 'web_fallback')
+        web_count = len(final_results) - database_count
+        
+        print(f"\\n📋 FINAL RESULTS SUMMARY:")
+        print(f"   🗂️  Database sources: {database_count}")
+        print(f"   🌐 Web sources: {web_count}")
+        print(f"   📊 Total results: {len(final_results)}")
+        
+        return final_results
 
     def _search_parliamentary_content(self, claim: str, hansard_df: pd.DataFrame, max_results: int = 10) -> List[Dict]:
         """
