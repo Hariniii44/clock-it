@@ -1,0 +1,6 @@
+2026-03-03 11:35:23,021 - INFO - Use pytorch device_name: cpu
+2026-03-03 11:35:23,382 - INFO - Load pretrained SentenceTransformer: sentence-transformers/all-MiniLM-L6-v2
+2026-03-03 12:13:13,333 - INFO - Completed acts: 23,529 docs in 37.7 minutes
+2026-03-03 12:36:42,998 - INFO - Completed supreme_court: 24,825 docs in 23.5 minutes
+2026-03-03 13:26:39,698 - INFO - Completed bills: 51,006 docs in 49.9 minutes
+2026-03-03 14:51:35,720 - INFO - Completed hansard_2020s: 53,030 docs in 84.9 minutes

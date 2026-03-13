@@ -1,0 +1,32 @@
+# datasets
+data/
+
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.arrow
+*.index
+*.faiss
+*.npy
+
+# Virtual environments
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+bias_aware_env/
+
+__pycache__/
+*.pyc
+*.pkl
+*.arrow
+*.index
+*.faiss
+*.npy
