@@ -1,29 +1,23 @@
-# Core NLP and ML packages for fact-checking pipeline
-transformers>=4.21.0           # For NLI model and sentiment analysis
-sentence-transformers>=2.2.2   # For semantic similarity and cross-encoder ranking
-torch>=1.11.0                  # PyTorch backend
-spacy>=3.7.0                   # For entity extraction
+# Core NLP and ML
+transformers>=4.21.0
+sentence-transformers==2.2.2
+torch>=1.11.0
+spacy>=3.7.0
 
 # Data processing
-pandas>=1.5.0                  # Data manipulation (bias profiling)
-numpy>=1.21.0                  # Numerical operations
-
-# API and web requests
-requests>=2.31.0               # HTTP requests (Serper, Groq APIs)
-groq>=0.4.0                    # Groq API client
-
-# Additional ML utilities
-scikit-learn>=1.1.0            # Additional ML utilities
-
-# Configuration
-python-dotenv>=1.0.0           # Environment variables
-
-# Progress tracking (optional but recommended)
-tqdm>=4.64.0                   # Progress bars
-
-faiss-cpu>=1.9.0
-sentence-transformers==2.2.2
-datasets==2.16.1
 pandas==2.0.3
 numpy==1.24.3
+
+# Retrieval
+faiss-cpu>=1.9.0
+datasets==2.16.1
+
+# API clients
+requests>=2.31.0
+groq>=0.4.0
+
+# Utilities
+scikit-learn>=1.1.0
+python-dotenv>=1.0.0
 tqdm==4.65.0
+huggingface_hub>=0.20.0
