@@ -78,19 +78,41 @@ class GroqVerifier:
         if not sources:
             return []
 
+        def _sanitize(text: str, max_len: int) -> str:
+            """Strip characters that can break JSON output from Groq."""
+            import unicodedata
+            # Remove emoji and non-BMP characters
+            text = ''.join(c for c in text if unicodedata.category(c) not in ('So', 'Cs'))
+            # Replace curly quotes, em-dashes, and other fancy punctuation with ASCII equivalents
+            replacements = {
+                '\u201c': '"', '\u201d': '"', '\u2018': "'", '\u2019': "'",
+                '\u2013': '-', '\u2014': '-', '\u2026': '...', '\u00a0': ' ',
+            }
+            for orig, repl in replacements.items():
+                text = text.replace(orig, repl)
+            # Replace double-quotes with single-quotes so the plain-text prompt
+            # doesn't confuse Groq's JSON generation when it copies snippet text
+            # into its "reason" fields.
+            text = text.replace('\\', '').replace('"', "'")
+            return text[:max_len].strip()
+
         # Build the source listing for the prompt
         source_lines = []
         for i, src in enumerate(sources, 1):
-            snippet = (src.get('snippet') or '')[:1200].strip()
-            title   = (src.get('title')   or '')[:120].strip()
-            date    = src.get('date', '') or src.get('date_raw', '')
-            domain  = src.get('source', src.get('link', ''))[:60]
+            snippet  = _sanitize(src.get('snippet') or '', 1200)
+            title    = _sanitize(src.get('title')   or '', 120)
+            date     = src.get('date', '') or src.get('date_raw', '')
+            domain   = src.get('source', src.get('link', ''))[:60]
             date_str = f" [{date}]" if date else ""
             source_lines.append(
                 f"[{i}] {domain}{date_str} — {title}\n    \"{snippet}\""
             )
 
+        from datetime import datetime
+        today = datetime.now().strftime('%B %d, %Y')
+
         user_prompt = (
+            f'Today\'s date: {today}\n'
             f'Claim: "{claim}"\n\n'
             f'Sources:\n' + '\n\n'.join(source_lines) +
             '\n\nReturn the JSON array now.'

@@ -25,7 +25,7 @@ def query_google_ai_mode(query: str, api_key: str) -> dict:
         "engine":  "google_ai_mode",
         "q":       query,
         "hl":      "en",
-        "gl":      "lk",
+        "gl":      "us",  # 'us' required — gl=lk breaks Google AI Mode reference extraction
         "api_key": api_key,
         "output":  "json",
     }

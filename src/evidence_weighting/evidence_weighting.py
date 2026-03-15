@@ -252,7 +252,21 @@ class EvidenceWeighter:
                 except:
                     pass
             
-            # If no date available, assume moderate recency
+            # Fallback: try to extract year from the URL itself
+            # e.g. newsfirst.lk/2022/09/04/... → 2022 → >1yr → 0.3
+            import re
+            url = evidence.get('link', '') or evidence.get('url', '')
+            year_match = re.search(r'/(20\d{2})/', url)
+            if year_match:
+                from datetime import datetime
+                year = int(year_match.group(1))
+                days_old = (datetime.now() - datetime(year, 1, 1)).days
+                if days_old > 365:
+                    return 0.3
+                elif days_old > 180:
+                    return 0.6
+
+            # If still no date available, assume moderate recency
             return 0.7
             
         except:
@@ -301,12 +315,17 @@ class EvidenceWeighter:
     
     def weight_all_evidence(self, claim: str, evidence_list: List[Dict],
                             verification_results: List[Dict], bias_analyses: List[Dict],
-                            framing_analyses: Dict = None) -> List[Dict]:
+                            framing_analyses: Dict = None,
+                            precomputed_alignments: List[float] = None) -> List[Dict]:
         """
         Weight all evidence pieces with enhanced bias profiling.
 
-        framing_analyses: optional output of FramingAnalyzer.analyze().
-          When provided, per-source framing consistency adjusts the bias penalty.
+        framing_analyses       : optional output of FramingAnalyzer / ClaimAwareBiasAnalyzer.
+                                 Per-source framing consistency adjusts the bias penalty.
+        precomputed_alignments : optional list of claim-relative alignment scores (0-1),
+                                 one per source.  When provided these replace the internal
+                                 calculate_bias_claim_alignment() call so the weighter uses
+                                 scores from ClaimAwareBiasAnalyzer directly.
         """
         framing_sources = (framing_analyses or {}).get('sources', [])
         # Build index → framing entry map for O(1) lookup
@@ -318,8 +337,12 @@ class EvidenceWeighter:
                 zip(evidence_list, verification_results, bias_analyses)):
             evidence_url = evidence.get("link", "")
 
-            # Calculate alignment with URL context
-            alignment = self.calculate_bias_claim_alignment(claim, bias, evidence_url)
+            # Use pre-computed claim-relative alignment when available,
+            # otherwise fall back to the profile-based calculation.
+            if precomputed_alignments and i < len(precomputed_alignments):
+                alignment = precomputed_alignments[i]
+            else:
+                alignment = self.calculate_bias_claim_alignment(claim, bias, evidence_url)
 
             # Pull framing consistency for this source (if available)
             framing_entry = framing_by_index.get(i, {})
@@ -473,17 +496,26 @@ class VerdictGenerator:
                 neutral_score += weight
         
         total = support_score + refute_score + neutral_score
-        
+
         if total == 0:
             return {
                 "verdict": "UNCERTAIN",
                 "confidence": 0.0,
                 "explanation": "No valid evidence found"
             }
-        
-        # Normalize scores
-        support_pct = support_score / total
-        refute_pct = refute_score / total
+
+        # NEUTRAL sources are abstentions — they don't address the claim and
+        # should not dilute the SUPPORTED/REFUTED signal.  Verdict is decided
+        # solely on the balance of active (SUPPORTED vs REFUTED) votes; neutral
+        # weight is only used to raise aleatoric uncertainty.
+        active_total = support_score + refute_score
+        if active_total > 0:
+            support_pct = support_score / active_total
+            refute_pct  = refute_score  / active_total
+        else:
+            # No active votes at all → uncertain
+            support_pct = 0.0
+            refute_pct  = 0.0
         neutral_pct = neutral_score / total
         
         # Calculate source diversity boost
@@ -597,10 +629,12 @@ class VerdictGenerator:
         # Epistemic uncertainty: variance in model confidence
         epistemic = float(np.std(confidences)) if confidences else 1.0
         
-        # Aleatoric uncertainty: lack of evidence
-        num_sources = len(weighted_evidence)
+        # Aleatoric uncertainty: lack of directly relevant evidence.
+        # Count sources that actually addressed the claim (SUPPORTED or REFUTED).
+        active_sources = sum(1 for item in weighted_evidence
+                             if item["verification"]["label"] != "NEUTRAL")
         ideal_sources = 5
-        aleatoric = max(0.0, (ideal_sources - num_sources) / ideal_sources)
+        aleatoric = max(0.0, (ideal_sources - active_sources) / ideal_sources)
         
         # Enhanced bias-induced uncertainty
         high_bias_count = sum(1 for a in alignments if a > 0.5)

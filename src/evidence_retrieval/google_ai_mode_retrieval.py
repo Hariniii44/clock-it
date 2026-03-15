@@ -265,7 +265,7 @@ class GoogleAIModeRetriever:
             'engine': 'google_ai_mode',
             'q': query,
             'hl': 'en',
-            'gl': 'lk',          # Sri Lanka locale for better local results
+            'gl': 'us',          # Sri Lanka locale for better local results
             'api_key': self.serp_api_key,
         }
 

@@ -510,6 +510,34 @@ def calculate_temporal_confidence(claim_temporal: dict, evidence_temporal: dict,
         'should_monitor': is_breaking_news and total_evidence_count < 8,
     }
 
+def _compute_divergence(sources: list) -> str:
+    """Classify framing divergence level from ClaimAwareBiasAnalyzer source list."""
+    if not sources:
+        return 'unknown'
+    alignments = [s.get('alignment', 0.0) for s in sources]
+    avg = sum(alignments) / len(alignments)
+    spread = max(alignments) - min(alignments)
+    if avg > 0.6 or spread < 0.2:
+        return 'low'
+    elif avg > 0.35 or spread < 0.45:
+        return 'medium'
+    else:
+        return 'high'
+
+
+def _divergence_summary(sources: list, claim_bias: dict) -> str:
+    """One-line cross-source divergence description."""
+    if not sources:
+        return ''
+    framings = [s.get('framing_type', 'neutral') for s in sources]
+    unique = set(framings)
+    claim_framing = claim_bias.get('framing_type', 'neutral')
+    if len(unique) == 1:
+        return f"All sources use {framings[0]} framing (claim framing: {claim_framing})."
+    return (f"Sources vary in framing: {', '.join(sorted(unique))}. "
+            f"Claim itself is framed as {claim_framing}.")
+
+
 def main():
     """Context-adaptive evidence weighting with bias-aware algorithm and temporal awareness"""
     
@@ -527,6 +555,7 @@ def main():
     from src.verification.groq_verification import GroqVerifier
     from src.bias_detection import BiasDetector
     from src.bias_detection.framing_analyzer import FramingAnalyzer
+    from src.bias_detection.claim_aware_bias_analyzer import ClaimAwareBiasAnalyzer
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
 
     # ── Web retriever selection ───────────────────────────────────────────
@@ -556,13 +585,14 @@ def main():
     groq_verifier = GroqVerifier(groq_api_key=Config.GROQ_API_KEY)
     verifier = ClaimVerifier()
     bias_detector = BiasDetector()
+    claim_bias_analyzer = ClaimAwareBiasAnalyzer(groq_api_key=Config.GROQ_API_KEY)
     
     # ★ YOUR CORE RESEARCH CONTRIBUTION ★
     weighter = EvidenceWeighter()  # Bias-aware weighting algorithm
     verdict_generator = VerdictGenerator()
-    framing_analyzer = FramingAnalyzer(
+    framing_analyzer = FramingAnalyzer(        # kept for fallback / comparison
         groq_key=Config.GROQ_API_KEY,
-        bias_profiles=weighter.bias_profiles,  # reuse already-loaded profiles
+        bias_profiles=weighter.bias_profiles,
     )
     
     # Optional explanation interface
@@ -844,15 +874,49 @@ def main():
     print("   • Authority & recency weighting")
     print("   • Multi-dimensional uncertainty quantification")
     
-    # Run framing analysis — single LLM call across all sources
-    print("\nRunning framing analysis (entity-level + cross-source LLM)...")
-    framing_result = framing_analyzer.analyze(claim, all_evidence)
-    print(f"  Framing divergence level: {framing_result.get('divergence_level', 'unknown').upper()}")
+    # ── Claim-aware bias analysis (single Groq call) ─────────────────────
+    # Analyses the claim's own bias then each source relative to that,
+    # producing claim-relative alignment scores for the weighting algorithm.
+    print("\nRunning claim-aware bias analysis...")
+    bias_result = claim_bias_analyzer.analyze(claim, all_evidence)
+    claim_bias = bias_result['claim_bias']
+    print(f"  Claim framing  : {claim_bias['framing_type']} "
+          f"| emotional tone: {claim_bias['emotional_tone']:+.2f} "
+          f"| political: {claim_bias['political_direction']}")
+    print(f"  Claim bias note: {claim_bias['explanation']}")
 
-    # Apply YOUR weighting algorithm — now framing consistency adjusts bias penalty
+    # Build pipeline-compatible framing_result for display + weighter
+    framing_result = {
+        'sources': [
+            {
+                'index':                    s['index'],
+                'source':                   (all_evidence[s['index']].get('source', '')
+                                             if s['index'] < len(all_evidence) else ''),
+                'framing_direction':        s['framing_type'],
+                'consistency_with_profile': 'unknown',
+                'loaded_phrases':           s['loaded_phrases'],
+                'explanation':              s['explanation'],
+                # extra fields for display
+                'emotional_tone':           s['emotional_tone'],
+                'political_direction':      s['political_direction'],
+                'alignment':                s['alignment'],
+            }
+            for s in bias_result['sources']
+        ],
+        'divergence_level':        _compute_divergence(bias_result['sources']),
+        'cross_source_divergence': _divergence_summary(bias_result['sources'], claim_bias),
+        'contested_entities':      [],
+    }
+    print(f"  Framing divergence level: {framing_result['divergence_level'].upper()}")
+
+    # Pre-computed alignment scores (claim-relative) for the weighting step
+    precomputed_alignments = [s['alignment'] for s in bias_result['sources']]
+
+    # Apply weighting algorithm with claim-relative alignments
     weighted_evidence = weighter.weight_all_evidence(
         claim, all_evidence, verification_results, bias_analyses,
         framing_analyses=framing_result,
+        precomputed_alignments=precomputed_alignments,
     )
 
     print(f"\nWEIGHTING RESULTS:")
@@ -874,9 +938,18 @@ def main():
         print(f"Source {i:2d} | {source_type:8s} | {verdict:8s} | Weight: {weight:.3f} | Bias-align: {bias_alignment:.3f}")
         print(f"         └─ {source_name} | Framing: {framing_dir} | Profile consistency: {consistency}")
 
-    print("\nKey insight: Sources with bias aligned to claim direction receive lower weights")
-    print("   consistent framing  → bias penalty amplified  (expected behaviour, less independent)")
-    print("   inconsistent framing → bias penalty reduced   (against own bias = credibility boost)")
+    print("\nKey insight: Sources that mirror the CLAIM'S OWN framing are less independent")
+    print("   High alignment  → source amplifies claim bias   → bias penalty applied")
+    print("   Low alignment   → source frames facts differently → more credible")
+
+    # ── Claim bias summary ────────────────────────────────────────────────
+    print(f"\nCLAIM BIAS PROFILE:")
+    print("─" * 70)
+    print(f"  Emotional tone    : {claim_bias['emotional_tone']:+.2f}  "
+          f"(-1=alarming, 0=neutral, +1=positive)")
+    print(f"  Political direction: {claim_bias['political_direction']}")
+    print(f"  Framing type      : {claim_bias['framing_type']}")
+    print(f"  Note              : {claim_bias['explanation']}")
 
     # ── Per-source bias framing explanations ─────────────────────────────
     framing_sources = framing_result.get('sources', [])
@@ -886,17 +959,18 @@ def main():
         for entry in framing_sources:
             idx = entry.get('index', 0)
             domain = entry.get('source', 'unknown')
-            direction = entry.get('framing_direction', 'unknown')
-            consistency = entry.get('consistency_with_profile', 'unknown')
+            framing_dir = entry.get('framing_direction', 'unknown')
+            emotion = entry.get('emotional_tone', 0.0)
+            political = entry.get('political_direction', 'neutral')
+            alignment = entry.get('alignment', 0.0)
             phrases = entry.get('loaded_phrases', [])
             explanation = entry.get('explanation', '')
 
             print(f"  Source {idx + 1:2d} | {domain}")
-            print(f"    Framing direction : {direction}")
-            print(f"    Profile consistency: {consistency}")
+            print(f"    Framing type      : {framing_dir} | Emotional: {emotion:+.2f} | Political: {political}")
+            print(f"    Claim alignment   : {alignment:.2f}  (how much this mirrors the claim's framing)")
             if phrases:
-                quoted = ', '.join(f'"{p}"' for p in phrases[:3])
-                print(f"    Loaded phrases    : {quoted}")
+                print(f"    Loaded phrases    : {', '.join(repr(p) for p in phrases[:3])}")
             if explanation:
                 print(f"    Explanation       : {explanation}")
             print()
