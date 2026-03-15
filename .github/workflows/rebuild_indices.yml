@@ -1,0 +1,40 @@
+name: Rebuild FAISS Indices
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'   # 1st of every month, 2am UTC
+  workflow_dispatch:        # manual trigger button on GitHub
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download latest datasets
+        run: python scripts/download_datasets.py --mode all
+
+      - name: Build FAISS indices
+        run: python scripts/build_indices.py
+
+      - name: Upload indices to HuggingFace
+        run: |
+          huggingface-cli upload ${{ secrets.HF_USERNAME }}/sl-factcheck-indices \
+            ./data/indices . --repo-type dataset
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: Restart HF Space
+        run: |
+          curl -X POST \
+            "https://huggingface.co/api/spaces/${{ secrets.HF_USERNAME }}/sl-factchecker/restart" \
+            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}"
