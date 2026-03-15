@@ -1074,6 +1074,17 @@ def main():
             level_prefix = "WARNING: " if evidence_quality['quality_level'] == 'poor' else "NOTE: "
             print(f"\nEVIDENCE QUALITY NOTE:")
             print(f"   {level_prefix}{evidence_quality['quality_note']}")
+
+    newly_developing = final_verdict.get("newly_developing", {})
+    if newly_developing.get("is_newly_developing"):
+        print(f"\n{'!'*70}")
+        print(f"  NEWLY DEVELOPING SITUATION")
+        print(f"{'!'*70}")
+        print(f"  All sources are recent web/social media reports — no official or")
+        print(f"  government sources have yet reported on this claim.")
+        print(f"  • Verdict should be treated as PRELIMINARY")
+        print(f"  • Information may change as official sources begin reporting")
+        print(f"  • Recent source ratio: {newly_developing.get('recent_source_ratio', 'N/A')}")
     
     # ==========================================
     # STEP 5: OPTIONAL GEMINI EXPLANATIONS

@@ -468,6 +468,93 @@ class VerdictGenerator:
         
         return has_official_sources or high_authority_ratio > 0.6
 
+    def _detect_newly_developing(self, weighted_evidence: List[Dict]) -> Dict:
+        """
+        Detect if this is a newly developing situation where official sources
+        haven't yet reported — i.e. all sources are recent web/social media only.
+
+        Signals checked:
+          1. No database (government document) sources
+          2. No high-authority official sources (authority >= 2.5)
+          3. >= 70% of dated sources are within 14 days
+        """
+        from datetime import datetime, timedelta
+        import re
+
+        OFFICIAL_AUTHORITY_THRESHOLD = 2.5
+        NEWLY_DEVELOPING_DAYS = 14
+        MIN_RECENT_RATIO = 0.70
+
+        now = datetime.now()
+        cutoff = now - timedelta(days=NEWLY_DEVELOPING_DAYS)
+
+        weighter = EvidenceWeighter()
+        has_official_source = False
+        has_database_source = False
+        dated_sources = 0
+        recent_sources = 0
+
+        for item in weighted_evidence:
+            ev = item.get("evidence", {})
+            link = ev.get("link", "") or ev.get("url", "")
+
+            # Database source check
+            if ev.get("source_type") == "database":
+                has_database_source = True
+
+            # Official/high-authority source check
+            auth = weighter._get_authority_weight(link, evidence=ev)
+            if auth >= OFFICIAL_AUTHORITY_THRESHOLD:
+                has_official_source = True
+
+            # Recency check — try date field first, then snippet prefix
+            date_str = ev.get("date", "") or ev.get("published_date", "")
+            if not date_str:
+                snippet = ev.get("snippet", "") or (ev.get("content", "") or "")[:60]
+                m = re.match(
+                    r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4})',
+                    snippet
+                )
+                if m:
+                    date_str = m.group(1)
+
+            if date_str:
+                dated_sources += 1
+                ev_date = None
+                for fmt in ['%Y-%m-%d', '%b %d, %Y', '%B %d, %Y', '%d/%m/%Y']:
+                    try:
+                        ev_date = datetime.strptime(date_str[:12].strip(), fmt)
+                        break
+                    except Exception:
+                        continue
+                if ev_date and ev_date >= cutoff:
+                    recent_sources += 1
+
+        no_official = not has_official_source and not has_database_source
+        recent_ratio = (recent_sources / dated_sources) if dated_sources > 0 else None
+        mostly_recent = (recent_ratio is None) or (recent_ratio >= MIN_RECENT_RATIO)
+
+        is_newly_developing = no_official and mostly_recent
+
+        warning = None
+        if is_newly_developing:
+            n = len(weighted_evidence)
+            days = NEWLY_DEVELOPING_DAYS
+            warning = (
+                f"NEWLY DEVELOPING SITUATION — all {n} sources are recent web/social media "
+                f"reports (within {days} days). No official or government sources have yet "
+                f"reported on this. Treat this verdict with caution; it may change as the "
+                f"situation develops."
+            )
+
+        return {
+            "is_newly_developing": is_newly_developing,
+            "warning": warning,
+            "has_official_source": has_official_source,
+            "has_database_source": has_database_source,
+            "recent_source_ratio": round(recent_ratio, 2) if recent_ratio is not None else None,
+        }
+
     def generate_verdict(self, weighted_evidence: List[Dict]) -> Dict:
         """
         Enhanced verdict generation considering source diversity, authority, and factual claim detection
@@ -604,9 +691,10 @@ class VerdictGenerator:
                 confidence = max_score + diversity_boost
 
         confidence = min(confidence, 1.0)  # Cap at 100%
-        
+
         uncertainty = self._decompose_uncertainty(weighted_evidence)
-        
+        newly_developing = self._detect_newly_developing(weighted_evidence)
+
         return {
             "verdict": verdict,
             "confidence": confidence,
@@ -615,7 +703,8 @@ class VerdictGenerator:
             "neutral_score": neutral_pct,
             "diversity_score": diversity_score,
             "is_factual_claim": is_factual,
-            "uncertainty_decomposition": uncertainty
+            "uncertainty_decomposition": uncertainty,
+            "newly_developing": newly_developing,
         }
     
     def _decompose_uncertainty(self, weighted_evidence: List[Dict]) -> Dict:
