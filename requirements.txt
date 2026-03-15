@@ -1,15 +1,15 @@
 # Core NLP and ML
-transformers>=4.21.0
-sentence-transformers==2.2.2
-torch>=1.11.0
-spacy>=3.7.0
+transformers==4.36.2
+tokenizers==0.15.2
+sentence-transformers==2.7.0
+torch>=2.0.0
 
 # Data processing
 pandas==2.0.3
 numpy==1.24.3
 
 # Retrieval
-faiss-cpu>=1.9.0
+faiss-cpu>=1.7.0
 datasets==2.16.1
 
 # API clients
