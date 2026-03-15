@@ -521,20 +521,39 @@ def main():
     # Initialize components
     # from src.evidence_retrieval import AdvancedEvidenceRetriever
     from src.evidence_retrieval.tavily_evidence_retrieval import TavilyEvidenceRetriever
+    from src.evidence_retrieval.google_ai_mode_retrieval import GoogleAIModeRetriever
     from src.retrieval.hybrid_retriever import HybridRetriever
     from src.verification import ClaimVerifier
+    from src.verification.groq_verification import GroqVerifier
     from src.bias_detection import BiasDetector
     from src.bias_detection.framing_analyzer import FramingAnalyzer
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
-    
+
+    # ── Web retriever selection ───────────────────────────────────────────
+    # Switch WEB_RETRIEVER here to compare retrieval strategies:
+    #   'tavily'        — Tavily API (5 decomposed queries, ~40 results)
+    #   'google_ai_mode' — Google AI Mode via SerpAPI (1 query, ~7 curated refs)
+    WEB_RETRIEVER = 'google_ai_mode'
+
     # Core research components
     hybrid_retriever = HybridRetriever()
-    web_retriever = TavilyEvidenceRetriever(
-        tavily_key=Config.TAVILY_API_KEY,
-        groq_key=Config.GROQ_API_KEY
-    )
+
+    if WEB_RETRIEVER == 'google_ai_mode' and Config.SERP_API_KEY:
+        web_retriever = GoogleAIModeRetriever(
+            serp_api_key=Config.SERP_API_KEY,
+            groq_key=Config.GROQ_API_KEY,
+            tavily_key=Config.TAVILY_API_KEY,
+        )
+        print(f"Web retriever: Google AI Mode (SerpAPI)")
+    else:
+        web_retriever = TavilyEvidenceRetriever(
+            tavily_key=Config.TAVILY_API_KEY,
+            groq_key=Config.GROQ_API_KEY,
+        )
+        print(f"Web retriever: Tavily")
     
-    # Single verification method (NLI-based)
+    # Verification: Groq batch (primary) + DeBERTa per-source (fallback)
+    groq_verifier = GroqVerifier(groq_api_key=Config.GROQ_API_KEY)
     verifier = ClaimVerifier()
     bias_detector = BiasDetector()
     
@@ -647,8 +666,22 @@ def main():
         
         for e in web_evidence:
             e['evidence_type'] = 'web'
-        
-        print(f"  Web sources: {len(web_evidence)}")
+
+        # Display Google AI Mode synthesis if available
+        synthesis = next(
+            (e.get('google_synthesis') for e in web_evidence if e.get('google_synthesis')),
+            None
+        )
+        if synthesis:
+            print("\n" + "─"*70)
+            print("GOOGLE AI MODE SYNTHESIS (no bias analysis):")
+            print("─"*70)
+            for line in synthesis.splitlines():
+                if line.strip():
+                    print(f"  {line}")
+            print("─"*70)
+
+        print(f"\n  Web sources: {len(web_evidence)}")
         
     except Exception as e:
         print(f"  Web retrieval failed: {e}")
@@ -729,39 +762,51 @@ def main():
     print("Running NLI verification on all sources...")
     verification_results = []
     bias_analyses = []
-    
+
+    # --- Groq batch verification (1 API call for all sources) ---
+    print(f"  Attempting Groq batch verification ({len(all_evidence)} sources)...")
+    groq_batch = groq_verifier.verify_batch(claim, all_evidence)
+    use_groq = len(groq_batch) == len(all_evidence)
+    if use_groq:
+        print(f"  Groq batch succeeded — skipping per-source DeBERTa calls")
+    else:
+        print(f"  Groq batch failed or incomplete — falling back to DeBERTa per source")
+
     for i, evidence in enumerate(all_evidence, 1):
         try:
-            # Single verification method (no dual verification confusion)
             print(f"  Verifying source {i}/{len(all_evidence)}...")
-            
-            # Show what content is being analyzed
+
             content_to_analyze = evidence["snippet"]
             print(f"    Source URL: {evidence.get('link', 'No URL')}")
             print(f"    Title: {evidence.get('title', 'No title')[:100]}{'...' if len(evidence.get('title', '')) > 100 else ''}")
             print(f"    Content: {content_to_analyze[:200]}{'...' if len(content_to_analyze) > 200 else ''}")
-            
-            verification_result = verifier.verify_claim(claim, content_to_analyze)
-            
-            # Debug: Check structure of verification result
+
+            if use_groq:
+                verification_result = groq_batch[i - 1]
+                reason = verification_result.get('reason', '')
+                print(f"      Groq verdict: {verification_result['label']} ({verification_result['confidence']:.1%}) — {reason}")
+            else:
+                verification_result = verifier.verify_claim(claim, content_to_analyze)
+                print(f"      RAW MODEL OUTPUT (DeBERTa fallback)")
+
             if not isinstance(verification_result, dict):
                 print(f"    Warning: Unexpected verification result type: {type(verification_result)}")
-                print(f"    Result: {verification_result}")
                 continue
-            
+
             if 'label' not in verification_result or 'confidence' not in verification_result:
-                print(f"    Warning: Missing required fields in verification result")
-                print(f"    Available fields: {list(verification_result.keys())}")
+                print(f"    Warning: Missing required fields: {list(verification_result.keys())}")
                 continue
-                
+
             verification_results.append(verification_result)
-            
-            # Bias analysis for weighting algorithm input
+
+            # Bias analysis (unchanged)
+            bias_input = evidence["snippet"]
             print(f"    Running bias analysis...")
-            bias_analysis = bias_detector.analyze_source(evidence["snippet"], evidence["link"])
+            print(f"      Bias input ({len(bias_input)} chars): {bias_input[:300]}{'...' if len(bias_input) > 300 else ''}")
+            bias_analysis = bias_detector.analyze_source(bias_input, evidence["link"])
             bias_analyses.append(bias_analysis)
 
-            prof = bias_analysis.get("source_profile", {})
+            prof    = bias_analysis.get("source_profile", {})
             combined = bias_analysis.get("combined_score", {})
             print(f"      Bias profile: {prof.get('bias_interpretation','N/A')} "
                   f"(score {prof.get('bias_score',0):+.1f}, conf {prof.get('confidence',0):.1%})")
@@ -770,18 +815,15 @@ def main():
                   f"framing {bias_analysis.get('framing_bias',{}).get('framing_score',0):.3f}")
             print(f"      Combined bias score: {combined.get('overall_bias',0):.3f}")
 
-            
-            status = verification_result['label']
-            confidence = verification_result['confidence']
+            status      = verification_result['label']
+            confidence  = verification_result['confidence']
             source_type = evidence['evidence_type']
-            
             print(f"  Source {i:2d} [{source_type:8s}]: {status:8s} ({confidence:.1%})")
-            
+
         except Exception as e:
             print(f"    Error processing source {i}: {e}")
             print(f"    Source type: {evidence.get('evidence_type', 'unknown')}")
             print(f"    Snippet length: {len(evidence.get('snippet', ''))}")
-            # Add a default result to maintain array alignment
             verification_results.append({'label': 'error', 'confidence': 0.0})
             bias_analyses.append({'overall_bias': 0.0, 'confidence': 0.0})
     

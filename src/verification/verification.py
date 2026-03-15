@@ -54,33 +54,80 @@ class ClaimVerifier:
         else:
             print("NLI model loaded successfully")
     
+    @staticmethod
+    def _to_declarative(claim: str) -> str:
+        """
+        Convert a question-form claim to a declarative statement so that NLI
+        models (trained on declarative hypothesis pairs) perform correctly.
+
+        Examples:
+          "Is it true that kottu price increased by Rs. 25?"
+              → "kottu price increased by Rs. 25"
+          "Did the government increase fuel prices in 2023?"
+              → "The government increased fuel prices in 2023"
+          "Was the election held on time?"
+              → "The election was held on time"
+        """
+        import re
+        s = claim.strip().rstrip('?').strip()
+
+        # Strip leading question phrases
+        patterns = [
+            r'^is it true that\s+',
+            r'^is it correct that\s+',
+            r'^is it a fact that\s+',
+            r'^is it accurate that\s+',
+            r'^is it true\s+',
+        ]
+        for p in patterns:
+            s = re.sub(p, '', s, flags=re.IGNORECASE)
+
+        # "Did X verb?" → "X verb"  (already declarative after dropping "Did")
+        s = re.sub(r'^did\s+', '', s, flags=re.IGNORECASE)
+
+        # "Was X Y?" → "X was Y"  — swap subject/verb for simple was/were/is/are
+        m = re.match(r'^(was|were|is|are)\s+(.+)', s, re.IGNORECASE)
+        if m:
+            verb, rest = m.group(1), m.group(2)
+            s = f"{rest} {verb}"
+
+        # Capitalise first letter
+        s = s[0].upper() + s[1:] if s else s
+        return s
+
     def verify_claim(self, claim: str, evidence: str) -> Dict:
         """
-        Verify claim against evidence using NLI or rule-based fallback
+        Verify claim against evidence using NLI or rule-based fallback.
+        The claim is normalised to declarative form before NLI to avoid the
+        well-known performance degradation when hypotheses are phrased as questions.
         Returns: {label: str, confidence: float}
         """
-        
+
         if self.use_rule_based:
             return self._rule_based_verification(claim, evidence)
-            
+
+        declarative_claim = self._to_declarative(claim)
+
         try:
-            nli_input = f"{evidence} </s> {claim}"
-            result = self.nli_model(nli_input)
+            nli_input = f"{evidence} </s> {declarative_claim}"
+            result = self.nli_model(nli_input, top_k=None)
             print(f"      RAW MODEL OUTPUT: {result}")
 
-            # Map NLI labels to fact-checking labels
             label_map = {
                 "ENTAILMENT": "SUPPORTED",
                 "CONTRADICTION": "REFUTED",
-                "NEUTRAL": "NEUTRAL", 
+                "NEUTRAL": "NEUTRAL",
                 "entailment": "SUPPORTED",
                 "contradiction": "REFUTED",
                 "neutral": "NEUTRAL"
             }
-            
+
+            # Pick the class with the highest score from all 3 classes
+            best = max(result, key=lambda x: x["score"])
+
             return {
-                "label": label_map.get(result[0]["label"], "NEUTRAL"),
-                "confidence": result[0]["score"]
+                "label": label_map.get(best["label"], "NEUTRAL"),
+                "confidence": best["score"]
             }
             
         except Exception as e:

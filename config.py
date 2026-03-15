@@ -15,6 +15,7 @@ class Config:
     SERPER_KEY = os.getenv('SERPER_API_KEY')
     TAVILY_API_KEY = os.getenv('TAVILY_API_KEY', '')
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    SERP_API_KEY = os.getenv('SERP_API_KEY', '')       # SerpAPI for Google AI Mode
     
     # EVIDENCE RETRIEVAL SETTINGS
     NUM_EVIDENCE_SOURCES = 20  # Number of sources to retrieve per claim
@@ -267,25 +268,25 @@ def print_config():
     print("BIAS-AWARE FACT-CHECKING CONFIGURATION")
     print("="*60)
     print("EXISTING PIPELINE:")
-    print(f"  Serper API Key: {'✅ Set' if Config.SERPER_KEY else '❌ Missing'}")
-    print(f"  Groq API Key: {'✅ Set' if Config.GROQ_API_KEY else '❌ Missing'}")
+    print(f"  Serper API Key: {'Set' if Config.SERPER_KEY else 'Missing'}")
+    print(f"  Groq API Key: {'Set' if Config.GROQ_API_KEY else 'Missing'}")
     print(f"  Evidence Sources: {Config.NUM_EVIDENCE_SOURCES}")
     
     print("\nNEW HYBRID RETRIEVAL:")
-    print(f"  Hybrid Mode: {'✅ Enabled' if USE_HYBRID_RETRIEVAL else '❌ Disabled'}")
-    print(f"  Serper Fallback: {'✅ Yes' if HYBRID_FALLBACK_TO_SERPER else '❌ No'}")
+    print(f"  Hybrid Mode: {' Enabled' if USE_HYBRID_RETRIEVAL else ' Disabled'}")
+    print(f"  Serper Fallback: {' Yes' if HYBRID_FALLBACK_TO_SERPER else ' No'}")
     print(f"  Embedding Model: {EMBEDDING_MODEL}")
     print(f"  Available Datasets: {len(DATASETS_CONFIG)}")
     
     print(f"\nDATA DIRECTORIES:")
     print(f"  Project Root: {PROJECT_ROOT}")
     print(f"  Data Dir: {DATA_DIR}")
-    print(f"  Indices Dir: {INDICES_DIR} ({'✅ Exists' if INDICES_DIR.exists() else '❌ Missing'})")
-    print(f"  Datasets Dir: {DATASETS_DIR} ({'✅ Exists' if DATASETS_DIR.exists() else '❌ Missing'})")
+    print(f"  Indices Dir: {INDICES_DIR} ({' Exists' if INDICES_DIR.exists() else ' Missing'})")
+    print(f"  Datasets Dir: {DATASETS_DIR} ({' Exists' if DATASETS_DIR.exists() else ' Missing'})")
     
     print(f"\nDATASET CATALOG:")
     for name, config in DATASETS_CONFIG.items():
-        print(f"  📊 {name}")
+        print(f"   {name}")
         print(f"     Authority: {config['authority']}")
         print(f"     Use for: {config['use_for']}")
         print(f"     HuggingFace: {config['hf_name']}")

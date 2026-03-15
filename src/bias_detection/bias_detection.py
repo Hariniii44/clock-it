@@ -36,26 +36,14 @@ class BiasDetector:
             print(f"Emotion model loading failed: {e}")
             self.emotion_model = None
         
-        # Attempt to load BART model once during initialization
-        try:
-            print("Loading BART model for framing analysis...")
-            self.zero_shot_classifier = pipeline(
-                "zero-shot-classification",
-                model="facebook/bart-large-mnli",
-                device=-1
-            )
-            print("BART model loaded successfully")
-        except Exception as e:
-            error_str = str(e).lower()
-            if any(mem_indicator in error_str for mem_indicator in 
-                   ['paging file', 'memory', 'out of memory', 'cuda out of memory', 'not enough memory']):
-                print(f"MEMORY WARNING: BART model unavailable due to insufficient memory")
-                print(f"System will use lightweight fallback analysis for framing detection")
-            else:
-                print(f"BART model loading failed: {str(e)[:100]}...")
-                print(f"Using fallback framing analysis")
-            self.bart_model_failed = True
-            self.zero_shot_classifier = None
+        # BART zero-shot classifier is no longer loaded here.
+        # Framing analysis is now handled by FramingAnalyzer (Groq LLM),
+        # which produces better claim-relative explanations without the
+        # ~1.6 GB memory cost of bart-large-mnli.
+        # _analyze_framing() falls back to the lightweight keyword method.
+        self.bart_model_failed = True
+        self.zero_shot_classifier = None
+        print("Framing analysis: using FramingAnalyzer (LLM) + keyword fallback")
         
         # Load pre-computed bias profiles
         self.bias_profiles = self._load_bias_profiles()
@@ -153,15 +141,15 @@ class BiasDetector:
             return self._default_bias_analysis()
         
         try:
-            # More aggressive text truncation to prevent tensor issues
-            # RoBERTa tokenizer creates ~1.3 tokens per word on average
+            # RoBERTa supports up to 512 tokens (~350 words at 1.3 tokens/word).
+            # We use 300 words / 2000 chars to stay safely within that limit
+            # while giving the sentiment model enough context to detect bias.
             words = text.split()
-            if len(words) > 50:  # Very conservative word limit
-                text = ' '.join(words[:50])
-            
-            # Character limit as additional safety
-            if len(text) > 400:  # Much more conservative character limit
-                text = text[:400]
+            if len(words) > 300:
+                text = ' '.join(words[:300])
+
+            if len(text) > 2000:
+                text = text[:2000]
             
             # Clean text to remove special characters that may cause tokenization issues
             import re
