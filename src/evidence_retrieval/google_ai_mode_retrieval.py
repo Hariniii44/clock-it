@@ -218,12 +218,12 @@ class GoogleAIModeRetriever:
                     ref['full_content_fetched'] = True
                 enriched += len(seen_urls[clean_url])
 
-                # --- TRAFILATURA EXTRACT OUTPUT ---
-                print("\n" + "-"*60)
-                print(f"TRAFILATURA — {clean_url}")
-                print("-"*60)
-                print(content)
-                print("-"*60)
+                # # --- TRAFILATURA EXTRACT OUTPUT ---
+                # print("\n" + "-"*60)
+                # print(f"TRAFILATURA — {clean_url}")
+                # print("-"*60)
+                # print(content)
+                # print("-"*60)
             else:
                 print(f"  trafilatura: no content extracted for {clean_url} — keeping snippet")
 
@@ -307,13 +307,13 @@ class GoogleAIModeRetriever:
             if synthesis:
                 print(f"  Google synthesis: {synthesis[:150]}{'...' if len(synthesis) > 150 else ''}")
 
-            # --- RAW SERP OUTPUT ---
-            import json
-            print("\n" + "="*60)
-            print("RAW SERP API RESPONSE")
-            print("="*60)
-            print(json.dumps(raw, indent=2, default=str))
-            print("="*60 + "\n")
+            # # --- RAW SERP OUTPUT ---
+            # import json
+            # print("\n" + "="*60)
+            # print("RAW SERP API RESPONSE")
+            # print("="*60)
+            # print(json.dumps(raw, indent=2, default=str))
+            # print("="*60 + "\n")
 
             return {
                 'references': references,

@@ -587,7 +587,6 @@ def main():
     bias_detector = BiasDetector()
     claim_bias_analyzer = ClaimAwareBiasAnalyzer(groq_api_key=Config.GROQ_API_KEY)
     
-    # ★ YOUR CORE RESEARCH CONTRIBUTION ★
     weighter = EvidenceWeighter()  # Bias-aware weighting algorithm
     verdict_generator = VerdictGenerator()
     framing_analyzer = FramingAnalyzer(        # kept for fallback / comparison
@@ -860,12 +859,12 @@ def main():
     print(f"\nVerification complete for {total_sources} sources")
     
     # ==========================================
-    # STEP 3: ★ BIAS-AWARE EVIDENCE WEIGHTING ★
+    # STEP 3: BIAS-AWARE EVIDENCE WEIGHTING 
     # ==========================================
     print("\n" + "="*70)
     print("STEP 3: BIAS-AWARE EVIDENCE WEIGHTING ALGORITHM")
     print("="*70)
-    print("CORE RESEARCH CONTRIBUTION: Context-adaptive weighting")
+    print("Context-adaptive weighting")
     
     print("\nApplying bias-aware weighting algorithm...")
     print("   Algorithm components:")
@@ -1158,13 +1157,6 @@ def main():
     else:
         print(f"User Explanations: Core algorithm only (Gemini unavailable)")
     
-    print(f"\nRESEARCH CONTRIBUTION DEMONSTRATED:")
-    print(f"   • Context-adaptive evidence weighting framework")
-    print(f"   • Political bias-claim alignment algorithm")  
-    print(f"   • Multi-dimensional uncertainty quantification")
-    print(f"   • Sri Lankan media bias profile integration")
-    print(f"   • Temporal evidence availability assessment")
-    print(f"   • Real-time claim detection and confidence adjustment")
     
     print(f"\n" + "="*70)
     print("ANALYSIS COMPLETE")

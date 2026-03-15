@@ -249,13 +249,13 @@ class ClaimAwareBiasAnalyzer:
             '}'
         )
 
-        # ── DEBUG: show exactly what is sent to Groq ─────────────────────
-        print("\n" + "=" * 60)
-        print("BIAS ANALYSIS — GROQ INPUT PROMPT")
-        print("=" * 60)
-        print(user_prompt)
-        print("=" * 60 + "\n")
-        # ─────────────────────────────────────────────────────────────────
+        # # ── DEBUG: show exactly what is sent to Groq ─────────────────────
+        # print("\n" + "=" * 60)
+        # print("BIAS ANALYSIS — GROQ INPUT PROMPT")
+        # print("=" * 60)
+        # print(user_prompt)
+        # print("=" * 60 + "\n")
+        # # ─────────────────────────────────────────────────────────────────
 
         try:
             from groq import Groq
