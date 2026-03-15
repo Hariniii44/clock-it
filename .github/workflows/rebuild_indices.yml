@@ -28,7 +28,7 @@ jobs:
 
       - name: Upload indices to HuggingFace
         run: |
-          huggingface-cli upload ${{ secrets.HF_USERNAME }}/sl-factcheck-indices \
+          huggingface-cli upload ${{ secrets.HF_USERNAME }}/sl-document-indices \
             ./data/indices . --repo-type dataset
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
