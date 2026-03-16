@@ -21,7 +21,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Download latest datasets
-        run: python scripts/download_datasets.py --mode priority timeout-minutes: 30
+        run: python scripts/download_datasets.py --mode priority 
+        timeout-minutes: 30
 
       - name: Build FAISS indices
         run: python scripts/build_indices.py
