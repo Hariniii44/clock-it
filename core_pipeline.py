@@ -1151,7 +1151,10 @@ def main():
     print("SYSTEM PERFORMANCE SUMMARY")
     print("="*70)
     
-    print(f"Temporal Analysis: {claim_temporal['recency_level']} claim detected")
+    if newly_developing.get("is_newly_developing"):
+        print(f"Temporal Analysis: newly developing situation — sources are recent web reports, no official sources yet")
+    else:
+        print(f"Temporal Analysis: no recency flags — established sources available")
     print(f"Evidence Retrieval: {total_sources} sources from dual architecture")
     print(f"Evidence Temporal Profile: {evidence_temporal['evidence_age_analysis']}")
     print(f"NLI Verification: Consistent single-method approach")
