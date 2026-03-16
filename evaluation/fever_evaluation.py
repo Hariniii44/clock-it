@@ -596,17 +596,38 @@ def run_fever_evaluation(sample_size: int = 10, use_huggingface: bool = True, da
     print(f"Processing {len(fever_claims)} claims...")
     print(f"Estimated time: {len(fever_claims) * 15 / 60:.1f} - {len(fever_claims) * 25 / 60:.1f} minutes")
     print()
-    
+
+    # Checkpoint file for resuming after crashes
+    checkpoint_file = os.path.join(os.path.dirname(__file__), 'fever_evaluation_checkpoint.json')
+
+    # Load existing checkpoint if available
+    results = []
+    completed_ids = set()
+    if os.path.exists(checkpoint_file):
+        with open(checkpoint_file, 'r') as f:
+            checkpoint = json.load(f)
+            results = checkpoint.get('results', [])
+            completed_ids = {r['fever_id'] for r in results}
+            print(f"Resuming from checkpoint: {len(results)} claims already completed")
+
     # Timing
     start_time = datetime.now()
-    
+
     # Evaluate all claims
-    results = []
     for i, claim_data in enumerate(fever_claims, 1):
+        # Skip already-completed claims
+        if claim_data.get('id') in completed_ids:
+            print(f"Skipping {claim_data.get('id')} (already completed)")
+            continue
+
         claim_start = time.time()
         print(f"\nFEVER EVALUATION {i}/{len(fever_claims)} (Progress: {i/len(fever_claims)*100:.1f}%)")
         result = evaluate_fever_claim(claim_data, components)
         results.append(result)
+
+        # Save checkpoint after every claim
+        with open(checkpoint_file, 'w') as f:
+            json.dump({'results': results}, f)
         
         # Progress tracking
         claim_time = time.time() - claim_start
