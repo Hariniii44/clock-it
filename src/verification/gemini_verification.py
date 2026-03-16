@@ -852,12 +852,16 @@ RECOMMENDATIONS:
             verdict = verification.get('label', 'unknown')
             confidence = verification.get('confidence', 0)
             
+            actual_content = evidence.get('content', evidence.get('snippet', ''))
+            content_preview = actual_content[:400].strip() if actual_content else '[no content retrieved]'
+
             evidence_summary.append(f"""
 Source {i}: {source_name}
   - Type: {source_type} source
   - Verdict: {verdict} ({confidence:.1%} confidence)
   - Final Weight: {weight:.3f}
   - Bias Alignment: {bias_alignment:.3f}
+  - Actual content: "{content_preview}"
 """)
         
         evidence_text = "\n".join(evidence_summary)
@@ -907,7 +911,7 @@ FINAL VERDICT:
 ALGORITHM EXPLANATION TASK:
 Your job is to explain in simple terms WHY each source received its specific weight. For each key source, show:
 
-1. **What the source actually said** (quote the relevant text)
+1. **What the source actually said** (quote directly from the "Actual content" field above — do NOT infer or fabricate quotes)
 2. **How NLI interpreted it** (what verdict + confidence it gave)
 3. **Bias-claim alignment calculation** (why the bias score was high/low)
 4. **Final weight explanation** (how all factors combined)
