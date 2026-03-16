@@ -10,6 +10,7 @@ Run with:
 
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 sys.path.append('src')
@@ -180,43 +181,52 @@ def verify_claim(request: VerifyRequest):
     claim_temporal = detect_temporal_claim(claim)
 
     # ------------------------------------------------------------------
-    # STEP 1: Dual evidence retrieval
+    # STEP 1: Dual evidence retrieval — DB and web run in parallel
     # ------------------------------------------------------------------
-    try:
-        database_evidence = m["hybrid_retriever"].hybrid_search(
-            query=claim,
-            claim_types=None,
-            total_results=10,
-            use_query_expansion=True,
-        )
-        db_formatted = [
-            {
-                "source": r["source"],
-                "title": r["title"],
-                "snippet": r.get("passage", r["text"]),
-                "link": r["url"],
-                "dataset_source": r["dataset"],
-                "authority": r["authority"],
-                "relevance_score": r["similarity_score"],
-                "evidence_type": "database",
-            }
-            for r in database_evidence
-        ]
-    except Exception as e:
-        print(f"  Database retrieval failed: {e}")
-        db_formatted = []
+    def _fetch_db():
+        try:
+            results = m["hybrid_retriever"].hybrid_search(
+                query=claim,
+                claim_types=None,
+                total_results=10,
+                use_query_expansion=True,
+            )
+            return [
+                {
+                    "source": r["source"],
+                    "title": r["title"],
+                    "snippet": r.get("passage", r["text"]),
+                    "link": r["url"],
+                    "dataset_source": r["dataset"],
+                    "authority": r["authority"],
+                    "relevance_score": r["similarity_score"],
+                    "evidence_type": "database",
+                }
+                for r in results
+            ]
+        except Exception as e:
+            print(f"  Database retrieval failed: {e}")
+            return []
 
-    try:
-        web_evidence = m["web_retriever"].retrieve_hybrid_serper_decomposition(
-            claim,
-            num_results=10,
-            results_per_query=8,
-        )
-        for e in web_evidence:
-            e["evidence_type"] = "web"
-    except Exception as e:
-        print(f"  Web retrieval failed: {e}")
-        web_evidence = []
+    def _fetch_web():
+        try:
+            results = m["web_retriever"].retrieve_hybrid_serper_decomposition(
+                claim,
+                num_results=10,
+                results_per_query=8,
+            )
+            for ev in results:
+                ev["evidence_type"] = "web"
+            return results
+        except Exception as e:
+            print(f"  Web retrieval failed: {e}")
+            return []
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        db_future = pool.submit(_fetch_db)
+        web_future = pool.submit(_fetch_web)
+        db_formatted = db_future.result()
+        web_evidence = web_future.result()
 
     all_evidence = db_formatted + web_evidence
     total_sources = len(all_evidence)
@@ -283,44 +293,64 @@ def verify_claim(request: VerifyRequest):
     web_sources_count = sum(1 for e in all_evidence if e.get("evidence_type") == "web")
 
     # ------------------------------------------------------------------
-    # STEP 2: NLI verification
+    # STEP 2 + 3 setup: NLI, per-source bias, and claim-level bias run concurrently
+    #
+    # groq_verifier.verify_batch  — single Groq API call (I/O bound)
+    # bias_detector per source    — RoBERTa + keyword fallback (CPU, fast)
+    # claim_bias_analyzer.analyze — Groq API call (I/O bound)
+    #
+    # The two Groq calls and the bias loop are independent, so we fire all
+    # three at once and join when done.
     # ------------------------------------------------------------------
-    verification_results = []
-    bias_analyses = []
+    def _run_nli():
+        return m["groq_verifier"].verify_batch(claim, all_evidence)
 
-    groq_batch = m["groq_verifier"].verify_batch(claim, all_evidence)
+    def _run_bias_detector():
+        results = []
+        for evidence in all_evidence:
+            try:
+                results.append(
+                    m["bias_detector"].analyze_source(
+                        evidence.get("snippet", ""), evidence.get("link", "")
+                    )
+                )
+            except Exception:
+                results.append({"overall_bias": 0.0, "confidence": 0.0})
+        return results
+
+    def _run_claim_bias():
+        return m["claim_bias_analyzer"].analyze(claim, all_evidence)
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        nli_future          = pool.submit(_run_nli)
+        bias_det_future     = pool.submit(_run_bias_detector)
+        claim_bias_future   = pool.submit(_run_claim_bias)
+
+        groq_batch    = nli_future.result()
+        bias_analyses = bias_det_future.result()
+        bias_result   = claim_bias_future.result()
+
     use_groq = len(groq_batch) == len(all_evidence)
 
+    verification_results = []
     for i, evidence in enumerate(all_evidence):
         try:
-            content = evidence["snippet"]
             if use_groq:
-                verification_result = groq_batch[i]
+                vr = groq_batch[i]
             else:
-                verification_result = m["verifier"].verify_claim(claim, content)
+                vr = m["verifier"].verify_claim(claim, evidence.get("snippet", ""))
 
-            if not isinstance(verification_result, dict):
+            if not isinstance(vr, dict) or "label" not in vr or "confidence" not in vr:
                 verification_results.append({"label": "error", "confidence": 0.0})
-                bias_analyses.append({"overall_bias": 0.0, "confidence": 0.0})
-                continue
-            if "label" not in verification_result or "confidence" not in verification_result:
-                verification_results.append({"label": "error", "confidence": 0.0})
-                bias_analyses.append({"overall_bias": 0.0, "confidence": 0.0})
-                continue
-
-            verification_results.append(verification_result)
-            bias_analysis = m["bias_detector"].analyze_source(content, evidence["link"])
-            bias_analyses.append(bias_analysis)
-
+            else:
+                verification_results.append(vr)
         except Exception as e:
-            print(f"  Source {i} error: {e}")
+            print(f"  NLI source {i} error: {e}")
             verification_results.append({"label": "error", "confidence": 0.0})
-            bias_analyses.append({"overall_bias": 0.0, "confidence": 0.0})
 
     # ------------------------------------------------------------------
     # STEP 3: Bias-aware evidence weighting
     # ------------------------------------------------------------------
-    bias_result = m["claim_bias_analyzer"].analyze(claim, all_evidence)
     claim_bias = bias_result["claim_bias"]
 
     framing_result = {
