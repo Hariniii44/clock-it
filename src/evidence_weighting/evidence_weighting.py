@@ -690,9 +690,19 @@ class VerdictGenerator:
                 verdict = "UNCERTAIN"
                 confidence = max_score + diversity_boost
 
-        confidence = min(confidence, 1.0)  # Cap at 100%
-
+        # Compute uncertainty first so bias_induced can reduce confidence
         uncertainty = self._decompose_uncertainty(weighted_evidence)
+
+        # Reduce confidence proportionally to bias-induced uncertainty.
+        # High bias alignment across sources means the evidence pool is less
+        # independent — the verdict should reflect that.
+        # Scale of 0.1 means a maximum ~10% reduction at bias_induced=1.0.
+        bias_penalty = uncertainty["bias_induced"] * 0.1
+        confidence = confidence - bias_penalty
+
+        confidence = min(confidence, 0.95)  # Cap at 95% — no real-world verdict is certain
+        confidence = max(confidence, 0.0)   # Floor at 0
+
         newly_developing = self._detect_newly_developing(weighted_evidence)
 
         return {
