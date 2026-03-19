@@ -827,15 +827,40 @@ RECOMMENDATIONS:
         try:
             # Build explanation prompt with temporal context
             prompt = self._build_weighting_explanation_prompt(claim, weighted_evidence, final_verdict, temporal_context)
-            
+
             # Get Gemini's explanation with retry logic
             response_text = self._make_api_request_with_retry(prompt, "weighting explanation")
-            
+
             return response_text.strip()
-            
+
         except Exception as e:
             return f"Error generating weighting explanations: {str(e)}"
-    
+
+    def stream_explanation(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None):
+        """
+        Stream the explanation token-by-token using Gemini's streaming API.
+        Yields text chunks as they arrive so the frontend can display them immediately.
+        Falls back to the blocking method if streaming fails.
+        """
+        prompt = self._build_weighting_explanation_prompt(claim, weighted_evidence, final_verdict, temporal_context)
+
+        for model_name in self.model_names:
+            try:
+                for chunk in self.client.models.generate_content_stream(
+                    model=model_name,
+                    contents=prompt,
+                ):
+                    if chunk.text:
+                        yield chunk.text
+                return  # success — stop trying other models
+            except Exception as e:
+                self.logger.warning(f"Streaming failed for {model_name}: {e}")
+                continue
+
+        # All streaming attempts failed — fall back to blocking call
+        yield self.explain_weighting_decisions(claim, weighted_evidence, final_verdict, temporal_context)
+
+
     def _build_weighting_explanation_prompt(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None) -> str:
         """Build prompt for explaining weighting decisions with temporal awareness"""
         
