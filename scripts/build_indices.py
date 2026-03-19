@@ -6,6 +6,8 @@ sys.path.append('.')
 from src.retrieval.faiss_indexer import FAISSIndexBuilder
 from config import DATASETS_DIR, INDICES_DIR
 
+SKIP_DATASETS = ['news']  # too large for CI (164k docs, ~8hrs to embed)
+
 def main():
     """Build all indices"""
     print("FAISS INDEX BUILDER")
@@ -14,7 +16,7 @@ def main():
     # Check if datasets exist
     available_datasets = []
     for dataset_dir in DATASETS_DIR.iterdir():
-        if dataset_dir.is_dir():
+        if dataset_dir.is_dir() and dataset_dir.name not in SKIP_DATASETS:
             available_datasets.append(dataset_dir.name)
 
     if not available_datasets:
@@ -30,7 +32,7 @@ def main():
 
     # Build indices
     builder = FAISSIndexBuilder()
-    results = builder.build_all_indices()
+    results = builder.build_all_indices(dataset_names=available_datasets)
 
     # Summary
     successful = len(results['successful'])
