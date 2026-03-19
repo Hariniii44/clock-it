@@ -32,7 +32,7 @@ def main():
 
     # Build indices
     builder = FAISSIndexBuilder()
-    results = builder.build_all_indices()
+    results = builder.build_all_indices(dataset_names=available_datasets)
 
     # Summary
     successful = len(results['successful'])
@@ -42,10 +42,6 @@ def main():
     else:
         print(f"\nERROR: No indices built successfully.")
         print(f"Check errors above and retry.")
-
-if __name__ == "__main__":
-    main()
-
 
 if __name__ == "__main__":
     main()
