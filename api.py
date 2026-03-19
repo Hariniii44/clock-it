@@ -10,9 +10,10 @@ Run with:
 
 import asyncio
 import json
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 sys.path.append('src')
@@ -104,6 +105,10 @@ async def lifespan(app: FastAPI):
     _models["verdict_generator"] = VerdictGenerator()
     print("  EvidenceWeighter + VerdictGenerator ready")
 
+    from src.retrieval.relevance_filter import CrossEncoderRelevanceFilter
+    _models["relevance_filter"] = CrossEncoderRelevanceFilter(threshold=0.4)
+    print("  CrossEncoderRelevanceFilter ready (DB sources only)")
+
     try:
         _models["gemini_explainer"] = GeminiClaimVerifier()
         _models["gemini_available"] = True
@@ -170,6 +175,7 @@ class VerifyResponse(BaseModel):
     evidence_quality: dict
     claim_bias: dict
     divergence_level: str
+    bias_sources: list[dict]
     sources: list[dict]
     gemini_explanation: str | None
 
@@ -203,7 +209,7 @@ async def _pipeline_steps(claim: str, m: dict):
                 results = m["hybrid_retriever"].hybrid_search(
                     query=claim, claim_types=None, total_results=10, use_query_expansion=True
                 )
-                return [
+                formatted = [
                     {
                         "source": r["source"], "title": r["title"],
                         "snippet": r.get("passage", r["text"]), "link": r["url"],
@@ -212,6 +218,13 @@ async def _pipeline_steps(claim: str, m: dict):
                     }
                     for r in results
                 ]
+                # Cross-encoder relevance filter — DB sources only.
+                # FAISS returns top-N by cosine similarity which matches broad
+                # topic overlap (anything about Sri Lanka governance). The
+                # cross-encoder scores (claim, snippet) directly and cuts sources
+                # that share keywords but don't address the specific claim.
+                filtered = m["relevance_filter"].filter_relevant(claim, formatted)
+                return filtered
             except Exception as e:
                 print(f"  Database retrieval failed: {e}")
                 return []
@@ -240,6 +253,22 @@ async def _pipeline_steps(claim: str, m: dict):
         yield {"type": "error", "message": "No evidence found for this claim."}
         return
 
+    # Drop sources where the snippet is predominantly non-Latin script
+    # (YouTube pages where trafilatura extracted Sinhala/Tamil UI text instead
+    # of video content — these contain no verifiable English text).
+    def _is_latin_content(text: str) -> bool:
+        if not text:
+            return False
+        latin = sum(1 for c in text if c.isascii() and c.isalpha())
+        total = sum(1 for c in text if c.isalpha())
+        return total == 0 or (latin / total) >= 0.6
+
+    before = len(all_evidence)
+    all_evidence = [e for e in all_evidence if _is_latin_content(e.get("snippet", ""))]
+    dropped = before - len(all_evidence)
+    if dropped:
+        print(f"  Non-Latin filter: {dropped} source(s) dropped (Sinhala/Tamil UI text)")
+
     # ------------------------------------------------------------------
     # Temporal evidence analysis + stale-source filter (fast)
     # ------------------------------------------------------------------
@@ -247,9 +276,20 @@ async def _pipeline_steps(claim: str, m: dict):
     content_freshness = analyze_content_freshness(all_evidence, claim)
 
     _now = datetime.now()
-    _current_ym = f"/{_now.year}/{_now.month:02d}/"
-    _url_recent = sum(1 for ev in all_evidence if _current_ym in ev.get("link", ""))
-    _has_url_recency = _url_recent >= 1
+    _two_weeks_ago = _now - timedelta(days=14)
+
+    def _url_within_two_weeks(url: str) -> bool:
+        m = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', url)
+        if m:
+            try:
+                pub = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                return _two_weeks_ago <= pub <= _now
+            except ValueError:
+                pass
+        return False
+
+    _url_recent = sum(1 for ev in all_evidence if _url_within_two_weeks(ev.get("link", "")))
+    _has_url_recency = _url_recent > len(all_evidence) / 2  # majority of sources must be recent
     _has_structured_recency = (
         evidence_temporal.get("recent_evidence_ratio", 0) > 0.6
         and evidence_temporal.get("avg_evidence_age_hours") is not None
@@ -339,13 +379,15 @@ async def _pipeline_steps(claim: str, m: dict):
             {
                 "index": s["index"],
                 "source": (all_evidence[s["index"]].get("source", "") if s["index"] < len(all_evidence) else ""),
-                "framing_direction": s["framing_type"],
+                "title": (all_evidence[s["index"]].get("title", "") if s["index"] < len(all_evidence) else ""),
+                "framing_type": s["framing_type"],
                 "consistency_with_profile": "unknown",
                 "loaded_phrases": s["loaded_phrases"],
                 "explanation": s["explanation"],
                 "emotional_tone": s["emotional_tone"],
                 "political_direction": s["political_direction"],
                 "alignment": s["alignment"],
+                "alignment_breakdown": s.get("alignment_breakdown", {}),
             }
             for s in bias_result["sources"]
         ],
@@ -381,6 +423,8 @@ async def _pipeline_steps(claim: str, m: dict):
         sources_out.append({
             "title": ev.get("title", ""), "link": ev.get("link", ""),
             "source": ev.get("source", ""), "evidence_type": ev.get("evidence_type", ""),
+            "snippet": ev.get("snippet", ""),
+            "date": ev.get("date", "") or ev.get("date_raw", ""),
             "verdict": vr.get("label", ""), "confidence": vr.get("confidence", 0.0),
             "weight": item.get("weight", 0.0), "bias_alignment": item.get("bias_alignment", 0.0),
         })
@@ -412,12 +456,33 @@ async def _pipeline_steps(claim: str, m: dict):
             "unverified_social_count": evidence_quality["unverified_social_count"],
         },
         "claim_bias": {
+            "claim_type": claim_bias.get("claim_type", "general"),
             "framing_type": claim_bias.get("framing_type", ""),
             "emotional_tone": claim_bias.get("emotional_tone", 0.0),
             "political_direction": claim_bias.get("political_direction", ""),
             "explanation": claim_bias.get("explanation", ""),
         },
         "divergence_level": framing_result["divergence_level"],
+        "bias_sources": [
+            {
+                "source": s.get("source", ""),
+                "title": s.get("title", ""),
+                "framing_type": s.get("framing_type", ""),
+                "emotional_tone": s.get("emotional_tone", 0.0),
+                "political_direction": s.get("political_direction", ""),
+                "loaded_phrases": s.get("loaded_phrases", []),
+                "explanation": s.get("explanation", ""),
+                "alignment": s.get("alignment", 0.0),
+                "alignment_breakdown": s.get("alignment_breakdown", {}),
+                "profile_score": (
+                    m["weighter"].bias_profiles.get(s.get("source", ""), {}).get("bias_score")
+                ),
+                "profile_interpretation": (
+                    m["weighter"].bias_profiles.get(s.get("source", ""), {}).get("interpretation")
+                ),
+            }
+            for s in framing_result["sources"]
+        ],
         "sources": sources_out,
         "gemini_explanation": None,
     }
@@ -432,6 +497,11 @@ async def _pipeline_steps(claim: str, m: dict):
             "content_freshness_score": content_freshness["freshness_score"],
             "breaking_indicators": content_freshness.get("breaking_indicators", []),
             "temporal_warnings": temporal_confidence["temporal_warnings"],
+        },
+        "bias_context": {
+            "claim_bias": result_data["claim_bias"],
+            "bias_sources": result_data["bias_sources"],
+            "divergence_level": framing_result["divergence_level"],
         },
     }
 
@@ -576,6 +646,109 @@ async def stream_explanation(request: ExplainRequest):
                     break
             except Exception:
                 yield f"data: {json.dumps({'type': 'error', 'message': 'Timed out waiting for Gemini'})}\n\n"
+                break
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
+
+
+@app.post("/explain/bias")
+async def stream_bias_explanation(request: ExplainRequest):
+    """
+    Stream a cross-source bias pattern explanation using the cached bias dimensions.
+    No re-running the pipeline — uses what was already computed during /verify.
+    """
+    claim = request.claim.strip()
+    cached = _result_cache.get(claim)
+    if not cached or "bias_context" not in cached:
+        raise HTTPException(status_code=404, detail="No cached result found. Please verify the claim first.")
+
+    import queue as q
+    import threading
+
+    bias_ctx = cached["bias_context"]
+
+    async def generate():
+        chunk_queue: q.Queue = q.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _produce():
+            try:
+                from groq import Groq
+                client = Groq(api_key=Config.GROQ_API_KEY)
+
+                claim_bias  = bias_ctx["claim_bias"]
+                sources     = bias_ctx["bias_sources"]
+                divergence  = bias_ctx["divergence_level"]
+
+                # Build a readable summary of each source's bias dimensions
+                source_lines = []
+                for i, s in enumerate(sources, 1):
+                    phrases = '", "'.join(s["loaded_phrases"]) if s["loaded_phrases"] else "none"
+                    title = s.get("title", "") or ""
+                    source_lines.append(
+                        f"  [{i}] {s['source'] or 'unknown'}"
+                        + (f' — "{title}"' if title else "") +
+                        f"\n      Framing: {s['framing_type']} | "
+                        f"Political: {s['political_direction']} | "
+                        f"Tone: {s['emotional_tone']:+.2f}"
+                        + (f'\n      Loaded phrases: "{phrases}"' if s["loaded_phrases"] else "") +
+                        f"\n      Bias note: {s['explanation']}"
+                    )
+
+                prompt = (
+                    f'Claim: "{claim}"\n\n'
+                    f"Overall claim framing: {claim_bias['framing_type']} "
+                    f"({claim_bias['political_direction']}, tone {claim_bias['emotional_tone']:+.2f})\n"
+                    f"Source divergence level: {divergence}\n\n"
+                    f"Per-source bias data:\n"
+                    + "\n\n".join(source_lines) +
+                    "\n\nIdentify 2-4 cross-source bias PATTERNS. "
+                    "A pattern is a group of sources that share similar framing, OR two sources "
+                    "with contrasting framing of the same fact.\n\n"
+                    "For EACH pattern, output EXACTLY this format:\n\n"
+                    "• <short pattern title>\n"
+                    "  Source [N] (<domain>) said: '<quote the actual title or a loaded phrase from it>'\n"
+                    "  Source [M] (<domain>) said: '<quote the actual title or a loaded phrase from it>'\n"
+                    "  Analysis: <2-3 sentences explaining what this pattern reveals about bias, "
+                    "why the specific language is loaded, and what effect it has on the reader>\n\n"
+                    "Rules:\n"
+                    "- ALWAYS quote directly from the title or loaded phrases provided above\n"
+                    "- Name the domain (e.g. adaderana.lk) in every source reference\n"
+                    "- Do not write any text before the first bullet or after the last pattern\n"
+                    "- Use plain English suitable for a general audience"
+                )
+
+                with client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=1024,
+                    stream=True,
+                ) as stream:
+                    for chunk in stream:
+                        text = chunk.choices[0].delta.content or ""
+                        if text:
+                            chunk_queue.put({"type": "chunk", "text": text})
+
+                chunk_queue.put({"type": "done"})
+
+            except Exception as e:
+                chunk_queue.put({"type": "error", "message": str(e)})
+
+        threading.Thread(target=_produce, daemon=True).start()
+
+        while True:
+            try:
+                msg = await loop.run_in_executor(None, lambda: chunk_queue.get(timeout=60))
+                yield f"data: {json.dumps(msg)}\n\n"
+                if msg["type"] in ("done", "error"):
+                    break
+            except Exception:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Timed out'})}\n\n"
                 break
 
     return StreamingResponse(
