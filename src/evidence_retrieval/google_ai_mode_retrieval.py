@@ -265,7 +265,7 @@ class GoogleAIModeRetriever:
             'engine': 'google_ai_mode',
             'q': query,
             'hl': 'en',
-            'gl': 'us',          # Sri Lanka locale for better local results
+            'gl': 'lk',          # Sri Lanka locale for better local results
             'api_key': self.serp_api_key,
         }
 
@@ -273,9 +273,21 @@ class GoogleAIModeRetriever:
             search = GoogleSearch(params)
             raw = search.get_dict()
 
-            # Build normalised evidence list from references
+            # Collect which reference indexes Google's synthesis actually cited
+            cited_indexes: set = set()
+            for block in raw.get('text_blocks', []):
+                for idx in block.get('reference_indexes', []):
+                    cited_indexes.add(idx)
+                for item in block.get('list', []):
+                    for idx in item.get('reference_indexes', []):
+                        cited_indexes.add(idx)
+
+            # Build normalised evidence list — only keep cited references
             references = []
             for ref in raw.get('references', []):
+                ref_index = ref.get('index', -1)
+                if cited_indexes and ref_index not in cited_indexes:
+                    continue  # Google didn't use this source in its synthesis
                 url = ref.get('link', '')
                 references.append({
                     'title':       ref.get('title', ''),
@@ -287,6 +299,11 @@ class GoogleAIModeRetriever:
                     'position':    ref.get('index', 0),
                     'search_type': 'google_ai_mode',
                 })
+
+            total_refs = len(raw.get('references', []))
+            if cited_indexes and len(references) < total_refs:
+                print(f"  Google AI Mode: {len(references)}/{total_refs} references kept "
+                      f"(only sources cited in synthesis)")
 
             # Extract synthesised answer from text_blocks
             synthesis_parts = []
@@ -307,13 +324,18 @@ class GoogleAIModeRetriever:
             if synthesis:
                 print(f"  Google synthesis: {synthesis[:150]}{'...' if len(synthesis) > 150 else ''}")
 
-            # # --- RAW SERP OUTPUT ---
-            # import json
-            # print("\n" + "="*60)
-            # print("RAW SERP API RESPONSE")
-            # print("="*60)
-            # print(json.dumps(raw, indent=2, default=str))
-            # print("="*60 + "\n")
+            # --- DEBUG: print cited references and synthesis ---
+            print("\n" + "="*70)
+            print("GOOGLE AI MODE — CITED REFERENCES")
+            print("="*70)
+            print(f"Cited indexes: {sorted(cited_indexes)}")
+            print(f"\nReferences kept ({len(references)}):")
+            for r in references:
+                print(f"  [{r['position']}] {r['source']} — {r['title'][:80]}")
+                print(f"       snippet: {r['snippet'][:120]}")
+            print(f"\nSynthesis:\n{synthesis[:500]}")
+            print("="*70 + "\n")
+            # --- END DEBUG ---
 
             return {
                 'references': references,
