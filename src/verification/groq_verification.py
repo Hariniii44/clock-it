@@ -25,18 +25,45 @@ For each numbered evidence source, decide whether it SUPPORTS, REFUTES, or is NE
 to the given claim.
 
 Definitions:
-  SUPPORTED – The source directly and explicitly confirms the claim is true.
-  REFUTED   – The source directly and explicitly contradicts the claim.
-  NEUTRAL   – The source does not contain sufficient information to confirm or deny.
+  SUPPORTED – The source contains VERIFIED FACTUAL EVIDENCE that the claim is true.
+              Only qualifies if an official body, court, government investigation, or
+              authoritative statistical source has formally established the fact.
+  REFUTED   – The source contains VERIFIED FACTUAL EVIDENCE that the claim is false.
+              Official clearances, court rulings of innocence, or authoritative
+              factual corrections qualify.
+  NEUTRAL   – Everything else: insufficient information, allegations, opinions,
+              accusations, political statements, or truncated snippets.
 
-Rules:
+THE MOST IMPORTANT RULE — accusations and allegations are ALWAYS NEUTRAL:
+  A quote where person X accuses, claims, says, alleges, or charges that Y did Z
+  is NOT evidence that Y did Z. It is evidence only that X made an accusation.
+  Classify such sources as NEUTRAL regardless of how directly or confidently
+  the accusation is stated, and regardless of how senior or credible the accuser is.
+
+Examples (study these carefully):
+
+  Claim: "Ranil Wickremesinghe was involved in the bond scam"
+
+  Source: "Former CBSL Governor Ajith Nivard Cabraal claims Ranil is the brains
+           behind the Central Bank bond scam."
+  → NEUTRAL  (an individual making an accusation — not a verified finding)
+
+  Source: "Opposition leader Anura Kumara says Ranil Wickremesinghe was the chief
+           planner of the bond scam."
+  → NEUTRAL  (a politician's allegation — not a verified finding)
+
+  Source: "The Presidential Commission of Inquiry report cleared Prime Minister
+           Ranil Wickremesinghe of direct involvement in the bond scam."
+  → REFUTED  (official investigation finding)
+
+  Source: "The High Court indicted Ranil Wickremesinghe on charges relating to
+           the Central Bank bond fraud."
+  → SUPPORTED  (official court proceeding)
+
+Other rules:
   • "Rs." means Sri Lankan Rupees.
-  • If the source is about a *different* time period (e.g. 2022 or 2024 when the
-    claim is about 2026), treat it as NEUTRAL — it describes a separate event.
-  • If the source is a truncated snippet that cuts off before the key fact,
-    treat it as NEUTRAL rather than REFUTED.
-  • Only mark SUPPORTED when the source clearly states the claimed fact.
-  • Only mark REFUTED when the source explicitly contradicts the claimed fact.
+  • If the source covers a different time period than the claim, treat as NEUTRAL.
+  • If the snippet cuts off before the key fact, treat as NEUTRAL not REFUTED.
 
 Return ONLY a valid JSON array. No markdown, no explanation outside the array.
 Each element: {"index": <int>, "label": "SUPPORTED"|"REFUTED"|"NEUTRAL",
@@ -118,6 +145,15 @@ class GroqVerifier:
             '\n\nReturn the JSON array now.'
         )
 
+        # --- DEBUG: print full prompt being sent to Groq ---
+        print("\n" + "="*70)
+        print("GROQ VERIFIER — FULL PROMPT")
+        print("="*70)
+        print(f"SYSTEM:\n{SYSTEM_PROMPT}")
+        print(f"\nUSER:\n{user_prompt}")
+        print("="*70 + "\n")
+        # --- END DEBUG ---
+
         try:
             from groq import Groq
             client = Groq(api_key=self.api_key)
@@ -128,7 +164,7 @@ class GroqVerifier:
                     {'role': 'user',   'content': user_prompt},
                 ],
                 temperature=0.0,
-                max_tokens=1024,
+                max_tokens=4096,
             )
             raw = response.choices[0].message.content.strip()
 
@@ -139,7 +175,17 @@ class GroqVerifier:
                     raw = raw[4:]
             raw = raw.strip()
 
-            parsed = json.loads(raw)
+            # If the output was truncated, recover by closing the array after
+            # the last complete object so json.loads doesn't fail outright.
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                last_brace = raw.rfind('}')
+                if last_brace != -1:
+                    raw = raw[:last_brace + 1] + ']'
+                    parsed = json.loads(raw)
+                else:
+                    raise
 
             # Normalise and reorder to match input order
             result_map = {}
