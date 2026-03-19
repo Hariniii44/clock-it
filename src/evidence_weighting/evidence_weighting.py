@@ -596,9 +596,17 @@ class VerdictGenerator:
         # solely on the balance of active (SUPPORTED vs REFUTED) votes; neutral
         # weight is only used to raise aleatoric uncertainty.
         active_total = support_score + refute_score
-        if active_total > 0:
+        active_count = sum(1 for item in weighted_evidence
+                           if item["verification"]["label"] != "NEUTRAL")
+        # Require at least 2 active (non-neutral) sources before trusting the
+        # active balance. A single weak source should not drive the verdict.
+        if active_total > 0 and active_count >= 2:
             support_pct = support_score / active_total
             refute_pct  = refute_score  / active_total
+        elif active_total > 0 and active_count == 1:
+            # Only one active source — treat as uncertain regardless of direction
+            support_pct = 0.0
+            refute_pct  = 0.0
         else:
             # No active votes at all → uncertain
             support_pct = 0.0
