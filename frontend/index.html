@@ -345,6 +345,17 @@
     /* Results state */
     #results-state { display: none; }
 
+    .result-claim {
+      font-size: .82rem;
+      color: var(--text-dim);
+      font-style: italic;
+      border-left: 2px solid var(--lime);
+      padding: 6px 10px;
+      margin-bottom: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
     .result-row {
       display: flex;
       justify-content: space-between;
@@ -569,6 +580,23 @@
       opacity: .7;
       margin-bottom: 10px;
       text-transform: lowercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ev-date {
+      color: var(--text-dim);
+      font-size: 9px;
+      opacity: .6;
+    }
+
+    .ev-snippet {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 10px;
+      border-left: 2px solid var(--border);
+      padding-left: 10px;
     }
 
     .ev-meta {
@@ -663,6 +691,174 @@
       font-weight: 700;
       text-transform: uppercase;
       color: var(--lime);
+    }
+
+    .bias-sources-header {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+    .bias-source-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid rgba(255,153,0,.5);
+      border-radius: 4px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .bias-source-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .bias-source-name {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--lime);
+    }
+    .bias-source-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .bias-tag {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      padding: 2px 6px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--orange);
+    }
+    .bias-phrases { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .bias-phrase {
+      font-size: 11px;
+      background: rgba(255,153,0,.1);
+      border: 1px solid rgba(255,153,0,.25);
+      border-radius: 2px;
+      padding: 2px 7px;
+      color: var(--orange);
+    }
+    .bias-source-expl {
+      font-size: 12.5px;
+      color: var(--text-primary);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .bias-why-section {
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+    .bias-why-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .bias-dim-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 11.5px;
+    }
+    .bias-dim-name {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      width: 80px;
+      flex-shrink: 0;
+    }
+    .bias-dim-bar-wrap {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,.07);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bias-dim-bar { height: 100%; border-radius: 2px; }
+    .bias-dim-value {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      width: 38px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .bias-dim-weight {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      width: 52px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .bias-profile-note {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 6px;
+      padding: 5px 8px;
+      background: rgba(255,255,255,.03);
+      border-radius: 3px;
+      border-left: 2px solid var(--border);
+    }
+    .bias-penalty-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 10px;
+    }
+    .bias-penalty-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-dim);
+    }
+    .bias-penalty-value {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--orange);
+    }
+    .bias-pattern-block {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--lime);
+      border-radius: 4px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .bias-pattern-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--lime);
+      margin-bottom: 8px;
+    }
+    .bias-pattern-quote {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-bottom: 3px;
+      padding-left: 10px;
+      border-left: 2px solid var(--border);
+    }
+    .bias-pattern-quote strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .bias-pattern-analysis {
+      font-size: 12.5px;
+      color: var(--text-primary);
+      line-height: 1.65;
+      margin-top: 8px;
     }
 
     /* =====================================================================
@@ -800,6 +996,22 @@
       letter-spacing: .1em;
       margin-top: 10px;
     }
+
+    .btn-generate {
+      background: transparent;
+      border: 1px solid var(--lime);
+      color: var(--lime);
+      padding: 10px 24px;
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: background .2s, color .2s;
+    }
+    .btn-generate:hover { background: var(--lime); color: var(--bg); }
+    .btn-generate:disabled { opacity: .45; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -923,7 +1135,18 @@
   <section id="details-section">
     <div class="section-header">Detailed Analysis</div>
 
-    <!-- 1. Evidence Sources -->
+    <!-- 1. AI Explanation -->
+    <div class="accordion" id="acc-explanation">
+      <button class="accordion-header" onclick="toggleAccordion('acc-explanation')">
+        <span>AI Explanation</span>
+        <span class="accordion-chevron">&#8964;</span>
+      </button>
+      <div class="accordion-body">
+        <div id="explanation-body"></div>
+      </div>
+    </div>
+
+    <!-- 2. Evidence Sources -->
     <div class="accordion" id="acc-evidence">
       <button class="accordion-header" onclick="toggleAccordion('acc-evidence')">
         <span>
@@ -944,6 +1167,11 @@
         <span class="accordion-chevron">&#8964;</span>
       </button>
       <div class="accordion-body">
+        <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim)">Claim type</span>
+          <span id="bias-claim-type" style="font-family:var(--font-mono);font-size:10px;color:var(--lime);background:rgba(200,255,0,.08);border:1px solid rgba(200,255,0,.2);border-radius:2px;padding:2px 8px">—</span>
+          <span id="bias-weights-hint" style="font-size:10px;color:var(--text-dim);margin-left:4px"></span>
+        </div>
         <div class="bias-grid">
           <div class="bias-cell">
             <div class="bias-cell-label">Framing</div>
@@ -961,10 +1189,19 @@
             </div>
           </div>
         </div>
-        <p class="bias-explanation" id="bias-explanation"></p>
         <div class="divergence-display">
           <span class="divergence-label">Source Divergence</span>
           <span class="divergence-value" id="divergence-value">—</span>
+        </div>
+        <div id="bias-sources-list" style="margin-top:16px"></div>
+        <div id="bias-patterns-section" style="display:none; margin-top:20px">
+          <div class="bias-sources-header" style="margin-bottom:12px">Cross-Source Bias Patterns</div>
+          <div id="bias-patterns-body"></div>
+        </div>
+        <div style="margin-top:16px">
+          <button class="explain-btn" id="bias-explain-btn" onclick="getBiasExplanation()" style="display:none">
+            Analyse Bias Patterns
+          </button>
         </div>
       </div>
     </div>
@@ -1005,17 +1242,6 @@
       </div>
     </div>
 
-    <!-- 4. AI Explanation -->
-    <div class="accordion" id="acc-explanation">
-      <button class="accordion-header" onclick="toggleAccordion('acc-explanation')">
-        <span>AI Explanation</span>
-        <span class="accordion-chevron">&#8964;</span>
-      </button>
-      <div class="accordion-body">
-        <div id="explanation-body"></div>
-      </div>
-    </div>
-
   </section><!-- #details-section -->
 
 
@@ -1024,33 +1250,14 @@
        ===================================================================== -->
   <script>
     // -----------------------------------------------------------------------
-    // Loading message cycle
+    // Loading message — driven by real SSE status events
     // -----------------------------------------------------------------------
-    const LOADING_MSGS = [
-      'Retrieving evidence...',
-      'Running NLI verification...',
-      'Detecting source bias...',
-      'Weighing evidence...',
-      'Generating verdict...',
-    ];
-    let _loadingTimer = null;
+    let _lastClaim = '';
 
-    function startLoadingCycle() {
-      let idx = 0;
+    function setLoadingMsg(msg) {
       const el = document.getElementById('loading-msg');
-      el.textContent = LOADING_MSGS[0];
-      _loadingTimer = setInterval(() => {
-        idx = (idx + 1) % LOADING_MSGS.length;
-        el.style.opacity = '0';
-        setTimeout(() => {
-          el.textContent = LOADING_MSGS[idx];
-          el.style.opacity = '1';
-        }, 150);
-      }, 2200);
-    }
-
-    function stopLoadingCycle() {
-      if (_loadingTimer) { clearInterval(_loadingTimer); _loadingTimer = null; }
+      el.style.opacity = '0';
+      setTimeout(() => { el.textContent = msg; el.style.opacity = '1'; }, 150);
     }
 
     // -----------------------------------------------------------------------
@@ -1078,19 +1285,20 @@
       const claim = document.getElementById('claim-input').value.trim();
       if (!claim) { showError('Please enter a claim to verify.'); return; }
 
+      _lastClaim = claim;
       clearError();
       showState('loading');
-      startLoadingCycle();
+      setLoadingMsg('Analyzing temporal context...');
 
       // Hide details + banner from a previous run
       document.getElementById('details-section').style.display = 'none';
       document.getElementById('temporal-banner').style.display = 'none';
 
       try {
-        const res = await fetch('http://localhost:8000/verify', {
+        const res = await fetch('http://localhost:8000/verify/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ claim }),
+          body: JSON.stringify({ claim, skip_gemini: true }),
         });
 
         if (!res.ok) {
@@ -1098,12 +1306,34 @@
           throw new Error(err.detail || `HTTP ${res.status}`);
         }
 
-        const data = await res.json();
-        stopLoadingCycle();
-        renderResults(data);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep incomplete last line
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let event;
+            try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (event.type === 'status') {
+              setLoadingMsg(event.message);
+            } else if (event.type === 'result') {
+              renderResults(event.data);
+            } else if (event.type === 'error') {
+              throw new Error(event.message);
+            }
+          }
+        }
 
       } catch (e) {
-        stopLoadingCycle();
         showState('input');
         showError(e.message || 'Verification failed. Is the server running?');
       }
@@ -1114,6 +1344,10 @@
     // -----------------------------------------------------------------------
     function renderResults(data) {
       showState('results');
+
+      // --- Claim display ---
+      document.getElementById('results-rows').innerHTML =
+        `<div class="result-claim">"${escapeHtml(data.claim)}"</div>`;
 
       // --- Verdict rows ---
       const verdictKey = verdictClass(data.verdict);
@@ -1126,7 +1360,7 @@
         { label: 'Biased Sources Flagged', value: String(biasedCount),                  cls: 'result-row-value orange-c' },
       ];
 
-      document.getElementById('results-rows').innerHTML = rows.map(r =>
+      document.getElementById('results-rows').innerHTML += rows.map(r =>
         `<div class="result-row">
           <span class="result-row-label">${escapeHtml(r.label)}</span>
           <span class="${r.cls}">${escapeHtml(r.value)}</span>
@@ -1149,9 +1383,9 @@
 
       // --- Details section ---
       renderEvidence(data.sources || []);
-      renderBias(data.claim_bias || {}, data.divergence_level || 'low');
+      renderBias(data.claim_bias || {}, data.divergence_level || 'low', data.bias_sources || []);
       renderUncertainty(data.uncertainty || {});
-      renderExplanation(data.gemini_explanation || '');
+      renderExplanation();
       document.getElementById('details-section').style.display = 'block';
 
       // Scroll to panel
@@ -1182,13 +1416,17 @@
         const weight = s.weight       != null ? s.weight.toFixed(3) : '—';
         const bias   = s.bias_alignment != null ? s.bias_alignment.toFixed(2) : '—';
 
+        const snippet = s.snippet ? escapeHtml(s.snippet) : '';
+        const dateStr = s.date ? escapeHtml(s.date) : '';
+
         return `
         <div class="ev-card">
           <div class="ev-card-top">
             <div class="ev-title">${titleHtml}</div>
             <span class="verdict-badge badge-${vLabel}">${vLabel}</span>
           </div>
-          <div class="ev-source">${escapeHtml(sourceDomain)}</div>
+          <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
+          ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
           <div class="ev-meta">
             <span class="ev-meta-item">Conf <span>${conf}</span></span>
             <span class="ev-meta-item">Weight <span>${weight}</span></span>
@@ -1203,10 +1441,20 @@
     // -----------------------------------------------------------------------
     // Bias analysis
     // -----------------------------------------------------------------------
-    function renderBias(claimBias, divergenceLevel) {
+    const _SENSITIVITY_LABELS = {
+      political: 'political ×0.50 · framing ×0.30 · emotional ×0.20',
+      economic:  'framing ×0.60 · emotional ×0.30 · political ×0.10',
+      legal:     'framing ×0.60 · political ×0.20 · emotional ×0.20',
+      general:   'emotional ×0.50 · framing ×0.45 · political ×0.05',
+    };
+
+    function renderBias(claimBias, divergenceLevel, biasSources) {
+      const claimType = claimBias.claim_type || 'general';
+      document.getElementById('bias-claim-type').textContent = claimType;
+      document.getElementById('bias-weights-hint').textContent =
+        'penalty weights: ' + (_SENSITIVITY_LABELS[claimType] || '');
       document.getElementById('bias-framing').textContent   = claimBias.framing_type    || '—';
       document.getElementById('bias-political').textContent = claimBias.political_direction || '—';
-      document.getElementById('bias-explanation').textContent = claimBias.explanation  || '';
       document.getElementById('divergence-value').textContent = divergenceLevel;
 
       const tone = claimBias.emotional_tone ?? 0;  // −1 to +1
@@ -1218,6 +1466,102 @@
       else if (tone >  0.3) toneLabel = 'Positive';
       else                  toneLabel = 'Neutral';
       document.getElementById('bias-tone-label').textContent = `${toneLabel} (${tone.toFixed(2)})`;
+
+      // Per-source bias breakdown
+      const container = document.getElementById('bias-sources-list');
+      const flagged = (biasSources || []).filter(s => s.alignment > 0.5);
+      // Reset patterns section on new result
+      document.getElementById('bias-patterns-section').style.display = 'none';
+      document.getElementById('bias-patterns-body').innerHTML = '';
+      maybeShowBiasPatternBtn(flagged.length);
+      if (!flagged.length) { container.innerHTML = ''; return; }
+
+      const _weights = {
+        political: {emotional: 0.20, political: 0.50, framing: 0.30},
+        economic:  {emotional: 0.30, political: 0.10, framing: 0.60},
+        legal:     {emotional: 0.20, political: 0.20, framing: 0.60},
+        general:   {emotional: 0.50, political: 0.05, framing: 0.45},
+      };
+      const W = _weights[claimType] || _weights.general;
+
+      container.innerHTML = `
+        <div class="bias-sources-header">Penalised Sources (${flagged.length})</div>
+        ${flagged.map(s => {
+          const bd = s.alignment_breakdown || {};
+          const phrases = (s.loaded_phrases || []).length
+            ? `<div class="bias-phrases">${s.loaded_phrases.map(p =>
+                `<span class="bias-phrase">"${escapeHtml(p)}"</span>`).join('')}</div>`
+            : '';
+
+          // Dimension rows — score × weight = contribution
+          const emoProx  = bd.emotional_proximity  ?? 0;
+          const polMatch = bd.political_match_blended ?? bd.political_match_llm ?? 0;
+          const framMatch = bd.framing_match ?? 0;
+
+          function dimBar(value, color) {
+            return `<div class="bias-dim-bar-wrap"><div class="bias-dim-bar" style="width:${Math.round(value*100)}%;background:${color}"></div></div>`;
+          }
+
+          const dimRows = `
+            <div class="bias-dim-row">
+              <span class="bias-dim-name">Emotional</span>
+              ${dimBar(emoProx, 'rgba(255,153,0,.6)')}
+              <span class="bias-dim-value">${emoProx.toFixed(2)}</span>
+              <span class="bias-dim-weight">×${W.emotional.toFixed(2)}</span>
+            </div>
+            <div class="bias-dim-row">
+              <span class="bias-dim-name">Political</span>
+              ${dimBar(polMatch, 'rgba(255,100,100,.6)')}
+              <span class="bias-dim-value">${polMatch.toFixed(2)}</span>
+              <span class="bias-dim-weight">×${W.political.toFixed(2)}</span>
+            </div>
+            <div class="bias-dim-row">
+              <span class="bias-dim-name">Framing</span>
+              ${dimBar(framMatch, 'rgba(100,180,255,.6)')}
+              <span class="bias-dim-value">${framMatch.toFixed(2)}</span>
+              <span class="bias-dim-weight">×${W.framing.toFixed(2)}</span>
+            </div>`;
+
+          // Profile note
+          let profileNote = '';
+          if (s.profile_score != null) {
+            const lean = s.profile_score > 10 ? 'pro-government'
+                       : s.profile_score < -10 ? 'opposition-leaning' : 'centrist';
+            const profileDir = bd.profile_direction || lean;
+            profileNote = `<div class="bias-profile-note">
+              Historical profile: <strong>${escapeHtml(s.source)}</strong> scores
+              <strong>${s.profile_score > 0 ? '+' : ''}${s.profile_score}</strong>
+              (${escapeHtml(s.profile_interpretation || lean)}) —
+              political match uses 50% live analysis + 50% historical profile
+              ${profileDir !== 'unknown' ? ` · profile direction: <strong>${escapeHtml(profileDir)}</strong>` : ''}
+            </div>`;
+          }
+
+          // Penalty estimate: alignment × 0.5 × 100 ≈ % credibility reduction
+          const penaltyPct = Math.round(s.alignment * 50);
+
+          return `
+          <div class="bias-source-card">
+            <div class="bias-source-top">
+              <span class="bias-source-name">${escapeHtml(s.source || 'Unknown source')}</span>
+              <span class="bias-source-tags">
+                ${s.framing_type ? `<span class="bias-tag">${escapeHtml(s.framing_type)}</span>` : ''}
+                ${s.political_direction ? `<span class="bias-tag">${escapeHtml(s.political_direction)}</span>` : ''}
+              </span>
+            </div>
+            ${phrases}
+            ${s.explanation ? `<div class="bias-source-expl">${escapeHtml(s.explanation)}</div>` : ''}
+            <div class="bias-why-section">
+              <div class="bias-why-label">Why a penalty was applied — alignment × claim-type weight</div>
+              ${dimRows}
+              ${profileNote}
+              <div class="bias-penalty-row">
+                <span class="bias-penalty-label">Estimated credibility reduction</span>
+                <span class="bias-penalty-value">~${penaltyPct}% (alignment ${s.alignment.toFixed(2)} × 0.5)</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}`;
     }
 
     // -----------------------------------------------------------------------
@@ -1235,15 +1579,168 @@
     }
 
     // -----------------------------------------------------------------------
-    // AI explanation (basic markdown → HTML)
+    // AI explanation — on-demand via /explain
     // -----------------------------------------------------------------------
-    function renderExplanation(text) {
+    function renderExplanation() {
       const el = document.getElementById('explanation-body');
-      if (!text) {
-        el.innerHTML = '<p class="no-explanation">No AI explanation available for this verification.</p>';
-        return;
+      el.innerHTML = '<div id="explanation-stream" style="white-space:pre-wrap;font-size:.85rem;line-height:1.7;color:var(--text-dim)">Generating explanation...</div>';
+      getExplanation();
+    }
+
+    async function getExplanation() {
+      const el  = document.getElementById('explanation-body');
+      if (!_lastClaim) return;
+
+      // Show a live text area that fills in as Gemini streams
+      el.innerHTML = '<div id="explanation-stream" style="white-space:pre-wrap;font-size:.85rem;line-height:1.7;color:var(--text-dim)">Generating explanation...</div>';
+      const streamEl = document.getElementById('explanation-stream');
+      let fullText = '';
+
+      try {
+        const res = await fetch('http://localhost:8000/explain/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ claim: _lastClaim }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let event;
+            try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (event.type === 'chunk') {
+              fullText += event.text;
+              streamEl.textContent = fullText;       // raw text while streaming
+            } else if (event.type === 'done') {
+              el.innerHTML = renderMarkdown(fullText); // render markdown when complete
+            } else if (event.type === 'error') {
+              throw new Error(event.message);
+            }
+          }
+        }
+
+      } catch (e) {
+        el.innerHTML = `<p style="color:var(--red);font-size:.8rem">${escapeHtml(e.message)}</p>
+          <button class="btn-generate" id="btn-explain" onclick="getExplanation()">Retry</button>`;
       }
-      el.innerHTML = renderMarkdown(text);
+    }
+
+    // Show the button only when flagged sources exist
+    function maybeShowBiasPatternBtn(flaggedCount) {
+      const btn = document.getElementById('bias-explain-btn');
+      if (btn) btn.style.display = flaggedCount > 0 ? 'inline-block' : 'none';
+    }
+
+    async function getBiasExplanation() {
+      const btn     = document.getElementById('bias-explain-btn');
+      const section = document.getElementById('bias-patterns-section');
+      const body    = document.getElementById('bias-patterns-body');
+      if (!_lastClaim) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Analysing...';
+      section.style.display = 'block';
+      body.innerHTML = '<div style="font-size:.8rem;color:var(--text-dim)">Identifying patterns…</div>';
+
+      let fullText = '';
+
+      try {
+        const res = await fetch('http://localhost:8000/explain/bias', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ claim: _lastClaim }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let event;
+            try { event = JSON.parse(line.slice(6)); } catch { continue; }
+            if (event.type === 'chunk') {
+              fullText += event.text;
+              body.innerHTML = '<div style="white-space:pre-wrap;font-size:.8rem;color:var(--text-dim)">' + escapeHtml(fullText) + '</div>';
+            } else if (event.type === 'done') {
+              body.innerHTML = renderBiasPatterns(fullText);
+              btn.textContent = 'Refresh';
+              btn.disabled = false;
+            } else if (event.type === 'error') {
+              throw new Error(event.message);
+            }
+          }
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Analyse Bias Patterns';
+        body.innerHTML = `<p style="color:var(--red);font-size:.8rem">${escapeHtml(e.message)}</p>`;
+      }
+    }
+
+    // Parse the bullet-pattern format from Groq into styled HTML blocks
+    function renderBiasPatterns(text) {
+      // Split on bullet points (lines starting with •)
+      const blocks = text.split(/(?=^•)/m).map(b => b.trim()).filter(Boolean);
+      if (!blocks.length) return `<div style="white-space:pre-wrap;font-size:.8rem;color:var(--text-dim)">${escapeHtml(text)}</div>`;
+
+      return blocks.map(block => {
+        const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return '';
+
+        // First line is the pattern title (strip leading •)
+        const title = escapeHtml(lines[0].replace(/^•\s*/, ''));
+
+        let quotes = [];
+        let analysis = '';
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (/^Source\s*\[?\d+\]?\s*\(/i.test(line) || /^Source\s+\d+\s+\(/i.test(line)) {
+            // Source quote line: "Source [N] (domain) said: '...'"
+            const m = line.match(/^(Source\s*\[?\d+\]?\s*\([^)]+\))\s+said:\s*['"](.*)['"]\s*$/i);
+            if (m) {
+              quotes.push(`<div class="bias-pattern-quote"><strong>${escapeHtml(m[1])}</strong> said: "${escapeHtml(m[2])}"</div>`);
+            } else {
+              quotes.push(`<div class="bias-pattern-quote">${escapeHtml(line)}</div>`);
+            }
+          } else if (/^Analysis:/i.test(line)) {
+            analysis = escapeHtml(line.replace(/^Analysis:\s*/i, ''));
+          }
+        }
+
+        return `
+          <div class="bias-pattern-block">
+            <div class="bias-pattern-title">${title}</div>
+            ${quotes.join('')}
+            ${analysis ? `<div class="bias-pattern-analysis">${analysis}</div>` : ''}
+          </div>`;
+      }).join('');
     }
 
     function renderMarkdown(md) {
@@ -1278,7 +1775,6 @@
     // Reset form
     // -----------------------------------------------------------------------
     function resetForm() {
-      stopLoadingCycle();
       showState('input');
       document.getElementById('details-section').style.display  = 'none';
       document.getElementById('temporal-banner').style.display  = 'none';
