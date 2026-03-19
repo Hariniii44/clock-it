@@ -42,10 +42,20 @@ from typing import Dict, List
 
 SYSTEM_PROMPT = """You are a media bias analyst specialising in Sri Lankan news and politics.
 
-For each piece of text measure THREE bias dimensions and return them.
-Do NOT compute or return any alignment score — that is calculated separately.
+For the CLAIM, also identify its type. For ALL texts (claim and sources) measure THREE
+bias dimensions. Do NOT compute or return any alignment score — that is calculated separately.
 
-Dimensions to measure:
+Claim type (return for the claim_bias object only):
+
+  claim_type : "political"  — involves government, ministers, parliament, parties,
+                              elections, political figures, or political decisions
+               "economic"   — involves prices, GDP, inflation, budgets, financial
+                              statistics, trade, employment numbers
+               "legal"      — involves court rulings, indictments, investigations,
+                              convictions, official inquiries
+               "general"    — everything else (social, sports, science, etc.)
+
+Dimensions to measure for every text:
 
   emotional_tone      : float  -1.0 (very alarming / fear-inducing / negative)
                                  0.0 (neutral, factual)
@@ -60,10 +70,23 @@ Dimensions to measure:
                         "supportive" — endorses or defends the subject
                         "dismissive" — downplays significance
 
-  loaded_phrases      : list of specific words or phrases in the text that
-                        reveal the bias (empty list if none found)
+  loaded_phrases      : list of emotionally charged, politically loaded, or
+                        rhetorically manipulative words/phrases found in the text.
+                        These must be QUOTED DIRECTLY from the text.
+                        DO NOT include neutral topic descriptors — the subject
+                        name or event name alone (e.g. "bond scam", "election")
+                        is NOT a loaded phrase. Only include language that reveals
+                        editorial bias: e.g. "brains behind", "chief planner",
+                        "alleged mastermind", "blatant corruption", "witch hunt".
+                        Return empty list [] if no genuinely loaded language exists.
 
-  explanation         : one sentence describing the bias detected
+  explanation         : 2-3 sentences explaining the bias. You MUST:
+                        (a) quote at least one specific phrase directly from the
+                            text that reveals the bias,
+                        (b) explain WHY that phrasing is biased rather than neutral,
+                        (c) state the likely editorial intent or effect on the reader.
+                        Do NOT write generic summaries like "critical report with
+                        negative tone" — be specific about the language used.
 
 Return ONLY valid JSON — no markdown fences, no explanation outside the JSON."""
 
@@ -73,9 +96,50 @@ class ClaimAwareBiasAnalyzer:
     Single Groq call for bias dimension extraction; Python computes alignment.
     """
 
+    # Sensitivity weights per claim type — how much each bias dimension
+    # matters when computing claim-relative alignment.
+    # Weights must sum to 1.0 within each row.
+    _SENSITIVITY = {
+        'political': {'emotional': 0.20, 'political': 0.50, 'framing': 0.30},
+        'economic':  {'emotional': 0.30, 'political': 0.10, 'framing': 0.60},
+        'legal':     {'emotional': 0.20, 'political': 0.20, 'framing': 0.60},
+        'general':   {'emotional': 0.50, 'political': 0.05, 'framing': 0.45},
+    }
+
     def __init__(self, groq_api_key: str = ''):
         self.api_key = groq_api_key or os.getenv('GROQ_API_KEY', '')
         self.model   = 'llama-3.3-70b-versatile'
+        self.bias_profiles = self._load_bias_profiles()
+
+    @staticmethod
+    def _load_bias_profiles() -> Dict:
+        try:
+            import json as _json
+            with open('data/bias_profiles.json', 'r', encoding='utf-8') as f:
+                return _json.load(f)
+        except Exception:
+            return {}
+
+    def _domain_from_url(self, url: str) -> str:
+        try:
+            u = url.split('://', 1)[-1]
+            d = u.split('/')[0]
+            return d[4:] if d.startswith('www.') else d
+        except Exception:
+            return ''
+
+    def _profile_political_direction(self, url: str) -> str:
+        """Derive political direction from pre-computed bias profile score."""
+        domain = self._domain_from_url(url)
+        profile = self.bias_profiles.get(domain)
+        if not profile:
+            return 'unknown'
+        score = profile.get('bias_score', 0.0)
+        if score > 10:
+            return 'pro_government'
+        if score < -10:
+            return 'opposition'
+        return 'neutral'
 
     # ------------------------------------------------------------------
     # Public API
@@ -123,10 +187,16 @@ class ClaimAwareBiasAnalyzer:
             return self._default(sources)
 
         claim_bias = raw_result['claim_bias']
+        claim_type = claim_bias.get('claim_type', 'general')
+        sensitivity = self._SENSITIVITY.get(claim_type, self._SENSITIVITY['general'])
 
         sources_out = []
         for i, src_raw in enumerate(raw_result['sources']):
-            alignment, breakdown = self._compute_alignment(claim_bias, src_raw)
+            url = sources[i].get('link', '') or sources[i].get('url', '') if i < len(sources) else ''
+            profile_direction = self._profile_political_direction(url)
+            alignment, breakdown = self._compute_alignment(
+                claim_bias, src_raw, sensitivity, profile_direction
+            )
             sources_out.append({
                 'index':               i,
                 'emotional_tone':      src_raw['emotional_tone'],
@@ -138,7 +208,8 @@ class ClaimAwareBiasAnalyzer:
                 'alignment_breakdown': breakdown,
             })
 
-        print(f"  [ClaimAwareBiasAnalyzer] Done — claim: {claim_bias['framing_type']} "
+        print(f"  [ClaimAwareBiasAnalyzer] Done — claim type: {claim_type} | "
+              f"framing: {claim_bias['framing_type']} "
               f"({claim_bias['emotional_tone']:+.2f} / {claim_bias['political_direction']})")
 
         return {'claim_bias': claim_bias, 'sources': sources_out}
@@ -148,48 +219,106 @@ class ClaimAwareBiasAnalyzer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _compute_alignment(claim_bias: Dict, source_bias: Dict):
+    def _compute_alignment(
+        claim_bias: Dict,
+        source_bias: Dict,
+        sensitivity: Dict = None,
+        profile_political_direction: str = 'unknown',
+    ):
         """
         Compute claim-relative alignment from raw bias dimensions.
 
-        Formula (weighted sum of three components):
-          emotional_proximity = 1 - |claim_tone - source_tone| / 2
-              Normalises the 0-2 absolute difference to a 0-1 similarity score.
-              Weight: 0.4
+        Formula
+        -------
+          alignment = emotional_proximity × w_emotional
+                    + political_match     × w_political
+                    + framing_match       × w_framing
 
-          political_match = 1.0 if both share the same political direction else 0.0
-              Weight: 0.3
+        Weights (w_*) come from the claim-type sensitivity table so that
+        bias dimensions that are irrelevant to the claim type contribute
+        minimally to the penalty.  E.g. for an economic statistics claim
+        the political weight drops to 0.10, so a source's political lean
+        barely affects its credibility score.
 
-          framing_match = 1.0 if both use the same framing type else 0.0
-              Weight: 0.3
-
-          alignment = emotional_proximity × 0.4
-                    + political_match     × 0.3
-                    + framing_match       × 0.3
+        Political match blending
+        ------------------------
+        When a pre-computed bias profile exists for the source, the
+        political match is a 50/50 blend of:
+          - LLM real-time direction (what this specific snippet says)
+          - Historical profile direction (what this outlet typically says)
+        This prevents a chronically biased source from "passing" because
+        a single neutral snippet hides its systematic lean.
 
         Returns (alignment: float, breakdown: dict)
         """
-        claim_tone      = float(claim_bias.get('emotional_tone', 0.0))
-        source_tone     = float(source_bias.get('emotional_tone', 0.0))
-        claim_political = claim_bias.get('political_direction', 'neutral')
+        if sensitivity is None:
+            sensitivity = {'emotional': 0.40, 'political': 0.30, 'framing': 0.30}
+
+        claim_tone       = float(claim_bias.get('emotional_tone', 0.0))
+        source_tone      = float(source_bias.get('emotional_tone', 0.0))
+        claim_political  = claim_bias.get('political_direction', 'neutral')
         source_political = source_bias.get('political_direction', 'neutral')
-        claim_framing   = claim_bias.get('framing_type', 'neutral')
-        source_framing  = source_bias.get('framing_type', 'neutral')
+        claim_framing    = claim_bias.get('framing_type', 'neutral')
+        source_framing   = source_bias.get('framing_type', 'neutral')
 
         emotional_proximity = 1.0 - abs(claim_tone - source_tone) / 2.0
-        political_match     = 1.0 if claim_political == source_political else 0.0
-        framing_match       = 1.0 if claim_framing   == source_framing   else 0.0
 
-        alignment = (
-            emotional_proximity * 0.4 +
-            political_match     * 0.3 +
-            framing_match       * 0.3
+        # LLM-based political match (real-time, this snippet)
+        llm_political_match = 1.0 if claim_political == source_political else 0.0
+
+        # Profile-based political match (historical, 50/50 blend when available)
+        if profile_political_direction not in ('unknown', ''):
+            profile_political_match = 1.0 if claim_political == profile_political_direction else 0.0
+            political_match = 0.5 * llm_political_match + 0.5 * profile_political_match
+        else:
+            political_match = llm_political_match
+
+        framing_match = 1.0 if claim_framing == source_framing else 0.0
+
+        w_e = sensitivity['emotional']
+        w_p = sensitivity['political']
+        w_f = sensitivity['framing']
+
+        raw_alignment = (
+            emotional_proximity * w_e +
+            political_match     * w_p +
+            framing_match       * w_f
         )
 
+        # Gate: only apply a penalty if the source shows genuine bias signal.
+        # A neutral source that happens to match the claim's neutral framing
+        # should NOT be penalised — tonal consistency ≠ editorial bias.
+        # Bias signal requires at least one of:
+        #   - emotionally charged language quoted from the text
+        #   - meaningfully non-neutral emotional tone (|tone| > 0.3)
+        #   - a political lean (not neutral)
+        has_loaded_phrases  = bool(source_bias.get('loaded_phrases'))
+        has_emotional_bias  = abs(source_tone) > 0.3
+        has_political_bias  = source_bias.get('political_direction', 'neutral') != 'neutral'
+        has_bias_signal     = has_loaded_phrases or has_emotional_bias or has_political_bias
+
+        alignment = raw_alignment if has_bias_signal else 0.0
+
         breakdown = {
-            'emotional_proximity': round(emotional_proximity, 3),
-            'political_match':     political_match,
-            'framing_match':       framing_match,
+            'claim_type_weights':       sensitivity,
+            'emotional_proximity':      round(emotional_proximity, 3),
+            'political_match_llm':      round(llm_political_match, 3),
+            'political_match_profile':  round(
+                0.5 * llm_political_match + 0.5 * (
+                    1.0 if claim_political == profile_political_direction else 0.0
+                ) if profile_political_direction not in ('unknown', '') else llm_political_match,
+                3
+            ),
+            'political_match_blended':  round(political_match, 3),
+            'framing_match':            framing_match,
+            'profile_direction':        profile_political_direction,
+            'has_bias_signal':          has_bias_signal,
+            'bias_signal_reason':       (
+                'loaded phrases detected' if has_loaded_phrases
+                else 'emotional tone non-neutral' if has_emotional_bias
+                else 'political lean detected' if has_political_bias
+                else 'no bias signal — penalty suppressed'
+            ),
         }
 
         return round(alignment, 3), breakdown
@@ -230,6 +359,7 @@ class ClaimAwareBiasAnalyzer:
             '\n\nReturn this JSON structure (nothing else):\n'
             '{\n'
             '  "claim_bias": {\n'
+            '    "claim_type": "<political|economic|legal|general>",\n'
             '    "emotional_tone": <float -1.0 to 1.0>,\n'
             '    "political_direction": "<pro_government|opposition|neutral>",\n'
             '    "framing_type": "<alarmist|critical|neutral|supportive|dismissive>",\n'
@@ -281,7 +411,11 @@ class ClaimAwareBiasAnalyzer:
 
             # Normalise claim_bias
             cb = parsed.get('claim_bias', {})
+            raw_claim_type = cb.get('claim_type', 'general').lower()
+            if raw_claim_type not in ('political', 'economic', 'legal', 'general'):
+                raw_claim_type = 'general'
             claim_bias = {
+                'claim_type':          raw_claim_type,
                 'emotional_tone':      float(cb.get('emotional_tone', 0.0)),
                 'political_direction': cb.get('political_direction', 'neutral'),
                 'framing_type':        cb.get('framing_type', 'neutral'),
@@ -341,6 +475,7 @@ class ClaimAwareBiasAnalyzer:
 
     def _default(self, sources: List[Dict]) -> Dict:
         claim_bias = {
+            'claim_type':          'general',
             'emotional_tone':      0.0,
             'political_direction': 'neutral',
             'framing_type':        'neutral',
