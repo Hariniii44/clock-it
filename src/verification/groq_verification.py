@@ -67,7 +67,7 @@ Other rules:
 
 Return ONLY a valid JSON array. No markdown, no explanation outside the array.
 Each element: {"index": <int>, "label": "SUPPORTED"|"REFUTED"|"NEUTRAL",
-               "confidence": <float 0.0-1.0>, "reason": "<one sentence>"}"""
+               "confidence": <float 0.0-1.0 representing YOUR CERTAINTY in the classification, e.g. 0.9 if clearly NEUTRAL, NOT how much the source supports the claim>, "reason": "<one sentence>"}"""
 
 
 class GroqVerifier:
