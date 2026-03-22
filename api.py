@@ -302,7 +302,16 @@ async def _pipeline_steps(claim: str, m: dict):
         }
 
     temporal_confidence = calculate_temporal_confidence(claim_temporal, evidence_temporal, len(all_evidence))
-    if "analysis_note" in claim_temporal and not temporal_confidence["temporal_warnings"]:
+
+    # Only flag as developing story if a majority of sources are actually
+    # dated within the last 2 weeks — not just because the claim lacks time markers.
+    _recent_source_count = sum(
+        1 for ev in all_evidence
+        if _url_within_two_weeks(ev.get("link", "")) or _url_within_two_weeks(ev.get("url", ""))
+    )
+    _majority_recent = len(all_evidence) > 0 and (_recent_source_count / len(all_evidence)) >= 0.5
+
+    if "analysis_note" in claim_temporal and _majority_recent and not temporal_confidence["temporal_warnings"]:
         temporal_confidence["temporal_warnings"].append(
             "Recency inferred from evidence — this may be a developing story; verdict may change as more information emerges"
         )
