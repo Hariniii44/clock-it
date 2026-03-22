@@ -732,6 +732,26 @@
       border-radius: 2px;
       color: var(--orange);
     }
+    .bias-clean-msg {
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 12px 0 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .bias-clean-explain-btn {
+      align-self: flex-start;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .bias-clean-explain-btn:hover { border-color: var(--lime); color: var(--lime); }
     .bias-phrases { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
     .bias-phrase {
       font-size: 11px;
@@ -1474,7 +1494,18 @@
       document.getElementById('bias-patterns-section').style.display = 'none';
       document.getElementById('bias-patterns-body').innerHTML = '';
       maybeShowBiasPatternBtn(flagged.length);
-      if (!flagged.length) { container.innerHTML = ''; return; }
+      if (!flagged.length) {
+        const total = (biasSources || []).length;
+        container.innerHTML = `
+          <div class="bias-sources-header">Penalised Sources (0)</div>
+          <div class="bias-clean-msg">
+            No sources were penalised for this claim.
+            ${total > 0 ? `All ${total} source${total > 1 ? 's' : ''} passed the bias signal gate — no loaded language, emotional bias, or political lean was detected.` : ''}
+            <button class="bias-clean-explain-btn" onclick="getBiasExplanation()">Why were no sources flagged?</button>
+          </div>`;
+        document.getElementById('bias-explain-btn').style.display = 'none';
+        return;
+      }
 
       const _weights = {
         political: {emotional: 0.20, political: 0.50, framing: 0.30},
