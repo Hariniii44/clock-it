@@ -105,9 +105,8 @@ async def lifespan(app: FastAPI):
     _models["verdict_generator"] = VerdictGenerator()
     print("  EvidenceWeighter + VerdictGenerator ready")
 
-    from src.retrieval.relevance_filter import CrossEncoderRelevanceFilter
-    _models["relevance_filter"] = CrossEncoderRelevanceFilter(threshold=0.4)
-    print("  CrossEncoderRelevanceFilter ready (DB sources only)")
+    # CrossEncoderRelevanceFilter disabled — DB retrieval is off
+    _models["relevance_filter"] = None
 
     try:
         _models["gemini_explainer"] = GeminiClaimVerifier()
@@ -223,7 +222,8 @@ async def _pipeline_steps(claim: str, m: dict):
                 # topic overlap (anything about Sri Lanka governance). The
                 # cross-encoder scores (claim, snippet) directly and cuts sources
                 # that share keywords but don't address the specific claim.
-                filtered = m["relevance_filter"].filter_relevant(claim, formatted)
+                rf = m.get("relevance_filter")
+                filtered = rf.filter_relevant(claim, formatted) if rf else formatted
                 return filtered
             except Exception as e:
                 print(f"  Database retrieval failed: {e}")
@@ -241,10 +241,8 @@ async def _pipeline_steps(claim: str, m: dict):
                 print(f"  Web retrieval failed: {e}")
                 return []
 
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            db_f = pool.submit(_db)
-            web_f = pool.submit(_web)
-            return db_f.result(), web_f.result()
+        # DB retrieval disabled — web only
+        return [], _web()
 
     db_formatted, web_evidence = await loop.run_in_executor(None, _retrieval)
     all_evidence = db_formatted + web_evidence
