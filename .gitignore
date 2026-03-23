@@ -1,6 +1,9 @@
 # datasets
 data/
 
+# Qdrant vector database storage (regeneratable, do not commit)
+qdrant_storage/
+
 
 # Python cache
 __pycache__/
