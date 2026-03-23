@@ -1,140 +1,55 @@
 """
-Download Nuwan's datasets from Hugging Face
-Run this script to download all Sri Lankan government datasets
+Download all configured Sri Lankan government datasets from HuggingFace.
+
+Usage:
+    python scripts/download_datasets.py           # download all missing datasets
+    python scripts/download_datasets.py --force   # re-download everything
+    python scripts/download_datasets.py --status  # check what's already downloaded
 """
 import sys
+import argparse
 sys.path.append('src')
 sys.path.append('.')
 
 from src.retrieval.dataset_loader import DatasetLoader
 from config import DATASETS_CONFIG, print_config
-import argparse
 
-def download_priority_datasets():
-    """Download high-priority datasets first (for testing)"""
-    priority_datasets = [
-        'pmd_press_releases',  # Presidential statements
-        'cabinet_decisions',   # Government decisions
-        'hansard'             # Parliamentary debates
-    ]
-
-    loader = DatasetLoader()
-
-    print("DOWNLOADING PRIORITY DATASETS")
-    print("="*60)
-    print("This will download the most important datasets first")
-    print(f"Priority datasets: {priority_datasets}")
-
-    results = {'successful': [], 'failed': [], 'already_existed': [], 'total_documents': 0}
-
-    for i, dataset_name in enumerate(priority_datasets, 1):
-        if dataset_name not in DATASETS_CONFIG:
-            print(f"WARNING: Skipping {dataset_name} - not in config")
-            continue
-
-        print(f"\nPRIORITY {i}/{len(priority_datasets)}: {dataset_name}")
-
-        try:
-            success, info = loader.download_dataset(dataset_name, force_reload=False)
-
-            if success:
-                if info['status'] == 'already_exists':
-                    results['already_existed'].append(info)
-                else:
-                    results['successful'].append(info)
-                results['total_documents'] += info.get('documents', 0)
-            else:
-                results['failed'].append(info)
-
-        except Exception as e:
-            print(f"ERROR: {dataset_name}: {e}")
-            results['failed'].append({
-                'name': dataset_name,
-                'error': str(e),
-                'status': 'failed'
-            })
-
-    # Print summary
-    loader._print_download_summary(results)
-
-    return results
-
-def download_all_datasets():
-    """Download all configured datasets"""
-    loader = DatasetLoader()
-
-    print("DOWNLOADING ALL DATASETS")
-    print("="*60)
-
-    results = loader.download_all_datasets(force_reload=False, skip_on_error=True)
-
-    return results
 
 def main():
-    """Main download script"""
     parser = argparse.ArgumentParser(description='Download Sri Lankan government datasets')
-    parser.add_argument('--mode', choices=['priority', 'all', 'status'], default='priority',
-                        help='Download mode: priority (key datasets), all (everything), status (check only)')
-    parser.add_argument('--force', action='store_true',
-                        help='Force re-download existing datasets')
-
+    parser.add_argument('--force',  action='store_true', help='Re-download already existing datasets')
+    parser.add_argument('--status', action='store_true', help='Show download status and exit')
     args = parser.parse_args()
 
-    # Show configuration
     print_config()
 
-    # Execute based on mode
-    if args.mode == 'status':
-        loader = DatasetLoader()
+    loader = DatasetLoader()
+
+    if args.status:
         status = loader.get_dataset_status()
-
         print("\nDATASET STATUS:")
-        print("="*40)
+        print("=" * 50)
+        ready, missing = [], []
         for name, info in status.items():
-            if info['exists']:
-                print(f"  {name}: {info['documents']:,} documents")
+            if info['exists'] and info.get('documents', 0) > 0:
+                print(f"  {name}: {info['documents']:,} docs")
+                ready.append(name)
             else:
-                print(f"  {name}: {info.get('error', 'Not found')}")
+                print(f"  {name}: NOT downloaded")
+                missing.append(name)
+        print(f"\n{len(ready)}/{len(status)} datasets ready")
+        if missing:
+            print(f"Missing: {missing}")
+        return
 
-        # Summary
-        existing = sum(1 for info in status.values() if info['exists'])
-        total = len(status)
-        print(f"\n{existing}/{total} datasets available locally")
+    print(f"\nDownloading {len(DATASETS_CONFIG)} datasets...")
+    results = loader.download_all_datasets(force_reload=args.force, skip_on_error=True)
 
-    elif args.mode == 'priority':
-        if args.force:
-            print("WARNING: Force mode not supported for priority downloads")
+    total_ready = len(results['successful']) + len(results['already_existed'])
+    print(f"\n{total_ready}/{len(DATASETS_CONFIG)} datasets ready.")
+    if total_ready > 0:
+        print("Next step: python scripts/build_qdrant_index.py")
 
-        results = download_priority_datasets()
-
-        # Next steps
-        successful = len(results['successful'])
-        existed = len(results['already_existed'])
-
-        if successful + existed >= 2:  # At least 2 datasets
-            print(f"\nSUCCESS: You have enough datasets to proceed.")
-            print(f"Next step: python scripts/build_indices.py")
-        else:
-            print(f"\nWARNING: Only {successful + existed} datasets available.")
-            print(f"Consider running: python scripts/download_datasets.py --mode all")
-
-    elif args.mode == 'all':
-        loader = DatasetLoader()
-        results = loader.download_all_datasets(force_reload=args.force, skip_on_error=True)
-
-        # Next steps
-        successful = len(results['successful'])
-        existed = len(results['already_existed'])
-        total_ready = successful + existed
-
-        if total_ready >= 5:
-            print(f"\nEXCELLENT: {total_ready} datasets ready.")
-            print(f"Next step: python scripts/build_indices.py")
-        elif total_ready >= 3:
-            print(f"\nGOOD: {total_ready} datasets ready - enough to proceed.")
-            print(f"Next step: python scripts/build_indices.py")
-        else:
-            print(f"\nWARNING: Only {total_ready} datasets ready. Check errors above.")
 
 if __name__ == "__main__":
     main()

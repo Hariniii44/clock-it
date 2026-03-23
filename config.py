@@ -16,6 +16,9 @@ class Config:
     TAVILY_API_KEY = os.getenv('TAVILY_API_KEY', '')
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
     SERP_API_KEY = os.getenv('SERP_API_KEY', '')       # SerpAPI for Google AI Mode
+
+    # QDRANT SETTINGS
+    QDRANT_URL = os.getenv('QDRANT_URL', 'http://localhost:6333')
     
     # EVIDENCE RETRIEVAL SETTINGS
     NUM_EVIDENCE_SOURCES = 20  # Number of sources to retrieve per claim
@@ -59,10 +62,16 @@ DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
 DATASETS_CONFIG = {
     # PARLIAMENTARY DATA (High Authority)
-    'hansard': {
-        'hf_name': 'nuuuwan/lk-hansard-chunks',
-        'description': 'Parliamentary debates and speeches (354k docs)',
-        'authority': 1.0,
+    # 'hansard': {  # 354k docs - too large, skipped
+    #     'hf_name': 'nuuuwan/lk-hansard-chunks',
+    #     'description': 'Parliamentary debates and speeches (354k docs)',
+    #     'authority': 1.0,
+    #     'use_for': ['government_statement', 'policy', 'parliamentary', 'legislative', 'all']
+    # },
+    'hansard_2000s': {
+        'hf_name': 'nuuuwan/lk-hansard-2000s-chunks',
+        'description': 'Parliamentary debates 2000s (2.83k docs)',
+        'authority': 0.95,
         'use_for': ['government_statement', 'policy', 'parliamentary', 'legislative', 'all']
     },
     'hansard_2020s': {
@@ -133,14 +142,32 @@ DATASETS_CONFIG = {
         'authority': 1.0,
         'use_for': ['economic', 'financial', 'monetary', 'statistics', 'all']
     },
-    
+    'fisheries_statistics': {
+        'hf_name': 'nuuuwan/lk-fisheries-annual-statistics-reports-chunks',
+        'description': 'Fisheries annual statistics reports (450 docs)',
+        'authority': 0.95,
+        'use_for': ['economic', 'statistics', 'fisheries', 'all']
+    },
+    'tourism_reports': {
+        'hf_name': 'nuuuwan/lk-tourism-monthly-reports-chunks',
+        'description': 'Tourism monthly reports (1.1k docs)',
+        'authority': 0.95,
+        'use_for': ['economic', 'statistics', 'tourism', 'all']
+    },
+
     # GOVERNMENT GAZETTES (Medium-High Authority)
-    'extraordinary_gazettes': {
-        'hf_name': 'nuuuwan/lk-extraordinary-gazettes-chunks',
-        'description': 'Extraordinary Government Gazettes (312k docs)',
+    'extraordinary_gazettes_2020s': {
+        'hf_name': 'nuuuwan/lk-extraordinary-gazettes-2020s-chunks',
+        'description': 'Extraordinary Gazettes 2020s (54.3k docs)',
         'authority': 0.9,
         'use_for': ['government_statement', 'policy', 'legal', 'administrative', 'all']
     },
+    # 'extraordinary_gazettes_2010s': {  # 118k docs - too large, skipped
+    #     'hf_name': 'nuuuwan/lk-extraordinary-gazettes-2010s-chunks',
+    #     'description': 'Extraordinary Gazettes 2010s (118k docs)',
+    #     'authority': 0.9,
+    #     'use_for': ['government_statement', 'policy', 'legal', 'administrative', 'all']
+    # },
     
     # LAW ENFORCEMENT 
     'police_press_releases': {
@@ -151,12 +178,12 @@ DATASETS_CONFIG = {
     },
     
     # NEWS & MEDIA (Lower Authority but High Coverage)
-    'news': {
-        'hf_name': 'nuuuwan/lk-news-chunks',
-        'description': 'Sri Lankan news articles (164k docs)',
-        'authority': 0.7,
-        'use_for': ['all']  # Always search news as comprehensive fallback
-    },
+    # 'news': {  # 164k docs, authority 0.7 - too large, low authority, skipped
+    #     'hf_name': 'nuuuwan/lk-news-chunks',
+    #     'description': 'Sri Lankan news articles (164k docs)',
+    #     'authority': 0.7,
+    #     'use_for': ['all']
+    # },
     
     # EDUCATION
     'education_publications': {
@@ -223,6 +250,9 @@ DATASETS_CONFIG = {
 #         'use_for': ['all']  #always searching news as fallback
 #     }
 # }
+
+# Qdrant settings
+QDRANT_URL = os.getenv('QDRANT_URL', 'http://localhost:6333')
 
 # Embedding and retrieval settings
 EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'  # Fast, good quality
