@@ -550,7 +550,7 @@ def main():
     # from src.evidence_retrieval import AdvancedEvidenceRetriever
     from src.evidence_retrieval.tavily_evidence_retrieval import TavilyEvidenceRetriever
     from src.evidence_retrieval.google_ai_mode_retrieval import GoogleAIModeRetriever
-    from src.retrieval.hybrid_retriever import HybridRetriever
+    from src.retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever as HybridRetriever
     from src.verification import ClaimVerifier
     from src.verification.groq_verification import GroqVerifier
     from src.bias_detection import BiasDetector
