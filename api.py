@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 
     from src.evidence_retrieval.tavily_evidence_retrieval import TavilyEvidenceRetriever
     from src.evidence_retrieval.google_ai_mode_retrieval import GoogleAIModeRetriever
-    from src.retrieval.hybrid_retriever import HybridRetriever
+    from src.retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever as HybridRetriever
     from src.verification import ClaimVerifier
     from src.verification.groq_verification import GroqVerifier
     from src.bias_detection import BiasDetector
@@ -217,14 +217,10 @@ async def _pipeline_steps(claim: str, m: dict):
                     }
                     for r in results
                 ]
-                # Cross-encoder relevance filter — DB sources only.
-                # FAISS returns top-N by cosine similarity which matches broad
-                # topic overlap (anything about Sri Lanka governance). The
-                # cross-encoder scores (claim, snippet) directly and cuts sources
-                # that share keywords but don't address the specific claim.
-                rf = m.get("relevance_filter")
-                filtered = rf.filter_relevant(claim, formatted) if rf else formatted
-                return filtered
+                # Qdrant already ranks by semantic similarity — skip the
+                # cross-encoder filter here so high-quality chunks aren't
+                # incorrectly dropped by the MS-MARCO-trained model.
+                return formatted
             except Exception as e:
                 print(f"  Database retrieval failed: {e}")
                 return []
@@ -236,13 +232,18 @@ async def _pipeline_steps(claim: str, m: dict):
                 )
                 for ev in results:
                     ev["evidence_type"] = "web"
-                return results
+                # Cross-encoder filter on web results — web search can return
+                # pages that keyword-match but don't address the specific claim.
+                rf = m.get("relevance_filter")
+                return rf.filter_relevant(claim, results) if rf else results
             except Exception as e:
                 print(f"  Web retrieval failed: {e}")
                 return []
 
-        # DB retrieval disabled — web only
-        return [], _web()
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            fut_db  = ex.submit(_db)
+            fut_web = ex.submit(_web)
+            return fut_db.result(), fut_web.result()
 
     db_formatted, web_evidence = await loop.run_in_executor(None, _retrieval)
     all_evidence = db_formatted + web_evidence
