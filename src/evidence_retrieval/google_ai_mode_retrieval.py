@@ -388,7 +388,7 @@ class GoogleAIModeRetriever:
         via HybridRetriever.  Identical to TavilyEvidenceRetriever.
         """
         try:
-            from src.retrieval.hybrid_retriever import HybridRetriever
+            from src.retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever as HybridRetriever
             retriever = HybridRetriever()
             results = retriever.hybrid_search(
                 query=claim,
