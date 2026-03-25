@@ -154,22 +154,61 @@ class EvidenceWeighter:
             return ''
 
     def _lookup_domain_authority(self, domain: str) -> float:
-        """Return the authority score for a bare domain string."""
-        official = ['parliament.lk', 'presidentsoffice.gov.lk', 'president.gov.lk',
-                    'pmoffice.gov.lk', 'cbsl.lk', 'statistics.gov.lk', 'mfa.gov.lk']
-        if any(d in domain for d in official):
+        """Return the authority score for a bare domain string.
+
+        Tiers are grounded in FactCheck.lk's stated source hierarchy
+        (interview with Mahoshadi, FactCheck.lk manager):
+          - Primary verification: DCS, Central Bank, IMF, ADB
+          - Official government: ministries, presidential office
+          - Context-only: Parliament Hansard (not primary verification)
+          - Fact-checkers, quality news, international press
+        """
+        # Primary statistical/financial verification sources
+        primary_stats = [
+            'statistics.gov.lk',            # Department of Census and Statistics (DCS)
+            'cbsl.gov.lk', 'cbsl.lk',       # Central Bank of Sri Lanka
+            'imf.org',                       # IMF
+            'adb.org',                       # Asian Development Bank
+        ]
+        if any(d in domain for d in primary_stats):
+            return 3.0
+
+        # Official government sources (authoritative but not primary data)
+        official_gov = [
+            'presidentsoffice.gov.lk', 'president.gov.lk',
+            'pmoffice.gov.lk', 'mfa.gov.lk',
+            'treasury.gov.lk', 'finance.gov.lk',
+            'elections.gov.lk',
+        ]
+        if any(d in domain for d in official_gov):
+            return 2.7
+
+        # Catch-all for any remaining .gov.lk domains
+        if '.gov.lk' in domain:
             return 2.5
 
+        # International development/financial institutions
+        intl_institutions = ['worldbank.org', 'un.org', 'undp.org', 'who.int', 'unicef.org']
+        if any(d in domain for d in intl_institutions):
+            return 2.3
+
+        # Parliament — Mahoshadi: used for context only, not primary verification
+        if 'parliament.lk' in domain:
+            return 2.0
+
+        # Fact-checkers
         fact_checkers = ['factcheck.lk', 'factcrescendo.com', 'boomlive.in', 'factly.in']
         if any(d in domain for d in fact_checkers):
             return 1.8
 
+        # Quality Sri Lankan news
         quality_news = ['dailymirror.lk', 'economynext.com', 'island.lk',
                         'newsfirst.lk', 'adaderana.lk', 'ft.lk']
         if any(d in domain for d in quality_news):
             return 1.3
 
-        international = ['reuters.com', 'bbc.com', 'cnn.com', 'aljazeera.com']
+        # International press
+        international = ['reuters.com', 'bbc.com', 'cnn.com', 'aljazeera.com', 'apnews.com']
         if any(d in domain for d in international):
             return 1.2
 
@@ -182,15 +221,40 @@ class EvidenceWeighter:
           - Known news-org pages  → parent org authority × 0.9
           - Unverified social     → 0.55 (below generic news baseline)
         """
-        # Dataset sources (highest authority)
+        # Dataset sources — keys match Qdrant collection names.
+        # Tiers based on FactCheck.lk's source hierarchy (Mahoshadi interview):
+        #   3.0 = primary verification (DCS data, Central Bank reports)
+        #   2.8 = official financial/policy announcements
+        #   2.7 = legal judgments
+        #   2.5 = official administrative/legislative records
+        #   2.0 = context-only (Hansard per Mahoshadi), statistics reports
         if dataset_source:
             dataset_authority = {
-                'hansard': 3.0,
-                'pmd': 2.8,
-                'cabinet': 2.8,
-                'supreme_court': 2.9,
-                'central_bank': 2.7,
-                'news': 1.5,
+                # Economic / Financial — primary verification sources
+                'central_bank_reports':         3.0,
+                'treasury_press_releases':       2.8,
+                'fisheries_statistics':          2.5,
+                'tourism_reports':               2.5,
+                # Legal / Judicial
+                'supreme_court':                 2.7,
+                'appeal_court':                  2.5,
+                'acts':                          2.5,
+                'bills':                         2.3,
+                # Presidential / Cabinet
+                'cabinet_decisions':             2.5,
+                'pmd_press_releases':            2.5,
+                # Gazettes / Admin
+                'extraordinary_gazettes_2020s':  2.3,
+                'extraordinary_gazettes_2010s':  2.3,
+                # Parliamentary — context only per Mahoshadi
+                'hansard_2020s':                 2.0,
+                'hansard_2010s':                 2.0,
+                'hansard_2000s':                 2.0,
+                'hansard':                       2.0,
+                # Other
+                'police_press_releases':         2.0,
+                'education_publications':        1.8,
+                'news':                          1.5,
             }
             return dataset_authority.get(dataset_source, 2.0)
 
@@ -211,6 +275,44 @@ class EvidenceWeighter:
 
         return self._lookup_domain_authority(domain)
     
+    def _get_temporal_relevance_factor(self, claim: str, evidence: Dict) -> float:
+        """
+        Penalise sources whose content doesn't mention the specific year(s) in the claim.
+
+        If a claim says "2020" but an article only discusses 2025 figures, that article
+        is temporally mismatched and should receive a lower weight regardless of its
+        authority or recency.
+
+        Returns:
+            1.0  — evidence content mentions at least one of the claim's years (match)
+            0.4  — evidence mentions years but none overlap with the claim (mismatch)
+            0.85 — evidence has no year mentions at all (mild uncertainty)
+        """
+        import re
+
+        # Extract years from the claim
+        claim_years = set(re.findall(r'\b(?:19|20)\d{2}\b', claim))
+        if not claim_years:
+            return 1.0  # Claim has no specific year — skip temporal check
+
+        # Get the evidence text to inspect
+        snippet = (evidence.get('snippet', '') or evidence.get('passage', '')
+                   or evidence.get('text', '') or '')
+
+        # If the snippet mentions any of the claim's years, it's temporally relevant
+        for year in claim_years:
+            if year in snippet:
+                return 1.0
+
+        # Check if the snippet discusses a completely different year
+        content_years = set(re.findall(r'\b(?:19|20)\d{2}\b', snippet))
+        if content_years:
+            # Has years but none overlap with the claim — temporal mismatch
+            return 0.4
+
+        # No year mentions in content — mild uncertainty
+        return 0.85
+
     def _get_recency_weight(self, evidence: Dict) -> float:
         """
         Calculate recency weight - newer sources get higher weight for factual claims
@@ -274,7 +376,8 @@ class EvidenceWeighter:
 
     def calculate_evidence_weight(self, verification_confidence: float, bias_alignment: float,
                                  base_credibility: float = 0.7, evidence_url: str = None,
-                                 evidence: Dict = None, framing_consistency: str = 'unknown') -> float:
+                                 evidence: Dict = None, framing_consistency: str = 'unknown',
+                                 claim: str = '') -> float:
         """
         Enhanced evidence weighting with source credibility, authority, recency,
         and framing consistency.
@@ -294,7 +397,8 @@ class EvidenceWeighter:
             base_credibility = max(base_credibility, profile_credibility)
 
         # Authority and recency weights
-        authority_weight = self._get_authority_weight(evidence_url, evidence=evidence)
+        dataset_source = evidence.get('dataset_source') if evidence else None
+        authority_weight = self._get_authority_weight(evidence_url, dataset_source=dataset_source, evidence=evidence)
         recency_weight = self._get_recency_weight(evidence) if evidence else 1.0
 
         # Bias penalty — adjusted by framing consistency
@@ -305,11 +409,20 @@ class EvidenceWeighter:
         consistency_mult = _consistency_multiplier.get(framing_consistency, 1.0)
         bias_penalty = bias_alignment * 0.5 * consistency_mult
 
-        weight = base_credibility * verification_confidence * (1 - bias_penalty) * authority_weight * recency_weight
+        # Cross-encoder relevance score (set on web sources by RelevanceFilter).
+        # Qdrant sources don't have this field — default to 1.0 (no penalty).
+        relevance_factor = evidence.get('cross_encoder_relevance', 1.0) if evidence else 1.0
+
+        # Temporal relevance — penalise sources whose content discusses a different
+        # year than the one mentioned in the claim (e.g. 2025 article for a 2020 claim).
+        temporal_factor = self._get_temporal_relevance_factor(claim, evidence) if (claim and evidence) else 1.0
+
+        weight = base_credibility * verification_confidence * (1 - bias_penalty) * authority_weight * recency_weight * relevance_factor * temporal_factor
 
         print(f"  Debug: conf={verification_confidence:.3f}, bias_align={bias_alignment:.3f}, "
               f"framing={framing_consistency}, authority={authority_weight:.1f}, "
-              f"recency={recency_weight:.1f}, weight={weight:.3f}")
+              f"recency={recency_weight:.1f}, relevance={relevance_factor:.3f}, "
+              f"temporal={temporal_factor:.2f}, weight={weight:.3f}")
 
         return max(weight, 0.1)
     
@@ -355,6 +468,7 @@ class EvidenceWeighter:
                 evidence_url=evidence_url,
                 evidence=evidence,
                 framing_consistency=framing_consistency,
+                claim=claim,
             )
 
             explanation = self._generate_weight_explanation(alignment, weight, bias, evidence_url)
