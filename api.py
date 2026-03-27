@@ -105,8 +105,13 @@ async def lifespan(app: FastAPI):
     _models["verdict_generator"] = VerdictGenerator()
     print("  EvidenceWeighter + VerdictGenerator ready")
 
-    # CrossEncoderRelevanceFilter disabled — DB retrieval is off
-    _models["relevance_filter"] = None
+    try:
+        from sentence_transformers import CrossEncoder
+        _models["relevance_filter"] = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+        print("  CrossEncoder relevance filter ready (ms-marco-MiniLM-L-6-v2)")
+    except Exception as e:
+        _models["relevance_filter"] = None
+        print(f"  CrossEncoder unavailable — relevance filtering disabled: {e}")
 
     try:
         _models["gemini_explainer"] = GeminiClaimVerifier()
@@ -232,10 +237,7 @@ async def _pipeline_steps(claim: str, m: dict):
                 )
                 for ev in results:
                     ev["evidence_type"] = "web"
-                # Cross-encoder filter on web results — web search can return
-                # pages that keyword-match but don't address the specific claim.
-                rf = m.get("relevance_filter")
-                return rf.filter_relevant(claim, results) if rf else results
+                return results
             except Exception as e:
                 print(f"  Web retrieval failed: {e}")
                 return []
@@ -328,6 +330,47 @@ async def _pipeline_steps(claim: str, m: dict):
         stale_indices = set(temporal_mismatch["stale_source_indices"])
         all_evidence = [e for i, e in enumerate(all_evidence) if i not in stale_indices]
 
+    # ------------------------------------------------------------------
+    # STAGE 1 RELEVANCE FILTER: Cross-encoder pre-filter for DB sources
+    # ------------------------------------------------------------------
+    # DB sources come from Qdrant keyword/semantic search and can include
+    # topically-adjacent but claim-irrelevant documents 
+    # Web sources skip this filter — Serper already used the claim as query.
+    ce_model = m.get("relevance_filter")
+    if ce_model is not None:
+        db_indices  = [i for i, e in enumerate(all_evidence) if e.get("evidence_type") == "database"]
+        web_indices = [i for i, e in enumerate(all_evidence) if e.get("evidence_type") != "database"]
+
+        if db_indices:
+            pairs  = [(claim, all_evidence[i].get("snippet", "") or all_evidence[i].get("content", "")) for i in db_indices]
+            scores = ce_model.predict(pairs)
+
+            # Keep DB sources scoring above CE_KEEP_THRESHOLD (clearly topical).
+            # Guarantee at least MIN_DB_KEEP sources survive, cap at MAX_DB_KEEP
+            # to prevent Qdrant flooding the pipeline with marginally-relevant docs.
+            # Attach scores to evidence items so Stage 2 can protect high-scorers.
+            CE_KEEP_THRESHOLD = 1.0   # ms-marco: >1 = strong topical match
+            MIN_DB_KEEP = 3
+            MAX_DB_KEEP = 5
+            for score, idx in zip(scores, db_indices):
+                all_evidence[idx]["_ce_score"] = float(score)
+            scored = sorted(zip(scores, db_indices), key=lambda x: x[0], reverse=True)
+            # Strong keepers: above threshold, capped at MAX_DB_KEEP
+            strong = [idx for score, idx in scored if score >= CE_KEEP_THRESHOLD]
+            keep_db = set(strong[:MAX_DB_KEEP])
+            # Top-up to MIN_DB_KEEP if not enough strong keepers
+            if len(keep_db) < MIN_DB_KEEP:
+                keep_db = {idx for _, idx in scored[:MIN_DB_KEEP]}
+
+            dropped = len(db_indices) - len(keep_db)
+            print(f"  [CrossEncoder] DB sources: {len(keep_db)} kept, {dropped} dropped (threshold={CE_KEEP_THRESHOLD})")
+            for score, idx in scored:
+                tag = "KEEP" if idx in keep_db else "DROP"
+                print(f"    [{tag}] score={score:+.2f}  {all_evidence[idx].get('source', '')[:60]}")
+
+            keep_indices = sorted(keep_db | set(web_indices))
+            all_evidence = [all_evidence[i] for i in keep_indices]
+
     db_sources_count = sum(1 for e in all_evidence if e.get("evidence_type") == "database")
     web_sources_count = sum(1 for e in all_evidence if e.get("evidence_type") == "web")
     total_sources = len(all_evidence)
@@ -363,6 +406,30 @@ async def _pipeline_steps(claim: str, m: dict):
 
     groq_batch, bias_analyses, bias_result = await loop.run_in_executor(None, _analysis)
 
+    # ------------------------------------------------------------------
+    # STAGE 2 RELEVANCE FILTER: Groq relevance flag
+    # ------------------------------------------------------------------
+    # Groq read each source in full to perform NLI — it can definitively
+    # judge relevance. Trust it completely for DB sources.
+    # Web sources are exempt: short Serper snippets can look off-topic
+    # even when the full page is useful.
+    if len(groq_batch) == len(all_evidence):
+        irrelevant_indices = {
+            i for i, gr in enumerate(groq_batch)
+            if not gr.get('relevant', True)
+            and all_evidence[i].get('evidence_type') == 'database'
+        }
+        if irrelevant_indices:
+            print(f"  [GroqRelevance] Dropping {len(irrelevant_indices)} DB source(s) flagged irrelevant by Groq:")
+            for i in sorted(irrelevant_indices):
+                print(f"    - {all_evidence[i].get('source', '')[:60]}")
+            keep            = [i for i in range(len(all_evidence)) if i not in irrelevant_indices]
+            all_evidence    = [all_evidence[i]    for i in keep]
+            groq_batch      = [groq_batch[i]      for i in keep]
+            bias_analyses   = [bias_analyses[i]   for i in keep]
+            if bias_result and 'sources' in bias_result:
+                bias_result['sources'] = [bias_result['sources'][i] for i in keep]
+
     use_groq = len(groq_batch) == len(all_evidence)
     verification_results = []
     for i, ev in enumerate(all_evidence):
@@ -396,6 +463,11 @@ async def _pipeline_steps(claim: str, m: dict):
                 "political_direction": s["political_direction"],
                 "alignment": s["alignment"],
                 "alignment_breakdown": s.get("alignment_breakdown", {}),
+                # Sri Lankan-specific bias flags (Deepanjalie/Mahoshadi interview findings)
+                "gender_bias_signal":    s.get("gender_bias_signal", False),
+                "ethnic_bias_signal":    s.get("ethnic_bias_signal", False),
+                "trauma_trivialization": s.get("trauma_trivialization", False),
+                "source_type":           s.get("source_type", "unknown"),
             }
             for s in bias_result["sources"]
         ],
@@ -428,13 +500,20 @@ async def _pipeline_steps(claim: str, m: dict):
     for item in weighted_evidence:
         ev = item["evidence"]
         vr = item["verification"]
+        fe = item.get("framing_entry", {})
         sources_out.append({
             "title": ev.get("title", ""), "link": ev.get("link", ""),
             "source": ev.get("source", ""), "evidence_type": ev.get("evidence_type", ""),
             "snippet": ev.get("snippet", ""),
             "date": ev.get("date", "") or ev.get("date_raw", ""),
             "verdict": vr.get("label", ""), "confidence": vr.get("confidence", 0.0),
+            "verdict_reason": vr.get("reason", ""),
             "weight": item.get("weight", 0.0), "bias_alignment": item.get("bias_alignment", 0.0),
+            "weight_explanation": item.get("explanation", ""),
+            "gender_bias_signal":    fe.get("gender_bias_signal", False),
+            "ethnic_bias_signal":    fe.get("ethnic_bias_signal", False),
+            "trauma_trivialization": fe.get("trauma_trivialization", False),
+            "source_type":           fe.get("source_type", "unknown"),
         })
 
     uncertainty = final_verdict.get("uncertainty_decomposition", {})
@@ -464,11 +543,15 @@ async def _pipeline_steps(claim: str, m: dict):
             "unverified_social_count": evidence_quality["unverified_social_count"],
         },
         "claim_bias": {
-            "claim_type": claim_bias.get("claim_type", "general"),
-            "framing_type": claim_bias.get("framing_type", ""),
-            "emotional_tone": claim_bias.get("emotional_tone", 0.0),
+            "claim_type":          claim_bias.get("claim_type", "general"),
+            "framing_type":        claim_bias.get("framing_type", ""),
+            "emotional_tone":      claim_bias.get("emotional_tone", 0.0),
             "political_direction": claim_bias.get("political_direction", ""),
-            "explanation": claim_bias.get("explanation", ""),
+            "explanation":         claim_bias.get("explanation", ""),
+            "loaded_phrases":      claim_bias.get("loaded_phrases", []),
+            "gender_bias_signal":    claim_bias.get("gender_bias_signal", False),
+            "ethnic_bias_signal":    claim_bias.get("ethnic_bias_signal", False),
+            "trauma_trivialization": claim_bias.get("trauma_trivialization", False),
         },
         "divergence_level": framing_result["divergence_level"],
         "bias_sources": [
@@ -482,6 +565,10 @@ async def _pipeline_steps(claim: str, m: dict):
                 "explanation": s.get("explanation", ""),
                 "alignment": s.get("alignment", 0.0),
                 "alignment_breakdown": s.get("alignment_breakdown", {}),
+                "gender_bias_signal":    s.get("gender_bias_signal", False),
+                "ethnic_bias_signal":    s.get("ethnic_bias_signal", False),
+                "trauma_trivialization": s.get("trauma_trivialization", False),
+                "source_type":           s.get("source_type", "unknown"),
                 "profile_score": (
                     m["weighter"].bias_profiles.get(s.get("source", ""), {}).get("bias_score")
                 ),
@@ -549,7 +636,8 @@ async def verify_claim(request: VerifyRequest):
         if cached:
             try:
                 result_data["gemini_explanation"] = _models["gemini_explainer"].explain_weighting_decisions(
-                    claim, cached["weighted_evidence"], cached["final_verdict"], cached["temporal_context"]
+                    claim, cached["weighted_evidence"], cached["final_verdict"], cached["temporal_context"],
+                    cached.get("bias_context", {}).get("claim_bias"),
                 )
             except Exception as e:
                 print(f"  Gemini explanation failed: {e}")
@@ -605,6 +693,7 @@ def get_explanation(request: ExplainRequest):
             cached["weighted_evidence"],
             cached["final_verdict"],
             cached["temporal_context"],
+            cached.get("bias_context", {}).get("claim_bias"),
         )
         return {"explanation": explanation}
     except Exception as e:
@@ -638,6 +727,7 @@ async def stream_explanation(request: ExplainRequest):
                     cached["weighted_evidence"],
                     cached["final_verdict"],
                     cached["temporal_context"],
+                    cached.get("bias_context", {}).get("claim_bias"),
                 ):
                     chunk_queue.put({"type": "chunk", "text": chunk})
                 chunk_queue.put({"type": "done"})
