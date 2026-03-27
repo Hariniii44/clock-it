@@ -16,6 +16,7 @@ Interface: drop-in compatible with ClaimVerifier — returns the same
 
 import json
 import os
+import re
 from typing import Dict, List
 
 
@@ -60,14 +61,98 @@ Examples (study these carefully):
            the Central Bank bond fraud."
   → SUPPORTED  (official court proceeding)
 
+FACT-CHECKER EXCEPTION — established fact-checking organisations can qualify as REFUTED:
+  If the source is an established fact-checking outlet (AFP Fact Check, Reuters Fact Check,
+  BBC Verify, Snopes, FactCrescendo, Newschecker, Alt News, or similar) AND it explicitly
+  labels the claim as "false", "bogus", "misleading", "debunked", or "unverified", classify
+  as REFUTED. The fact-checker's investigation (contacting sources, checking records, verifying
+  documents) constitutes authoritative factual correction even without a court ruling.
+
+  Example:
+    Claim: "Politician X was caught accepting a bribe"
+    Source (AFP Fact Check): "This claim is false. AFP reporters contacted the politician's
+      office and reviewed official documents — no evidence of bribery was found."
+    → REFUTED  (authoritative fact-checker explicitly debunking the claim)
+
+ALTERNATIVE CAUSE EXCEPTION — a credible alternative factual explanation refutes causal claims:
+  If a claim asserts that person X caused event E (e.g. "killed", "poisoned", "caused the crash"),
+  and multiple independent credible sources confirm a different, natural or unrelated cause for E
+  (e.g. "died after a prolonged illness", "death by natural causes", "accident"), classify those
+  sources as REFUTED. The confirmed alternative cause directly contradicts the claimed cause.
+
+  Example:
+    Claim: "Journalist Y was killed by politician Z"
+    Source: "Journalist Y, 55, died at the National Hospital Colombo after receiving
+             treatment for a prolonged illness." (from a credible news outlet)
+    → REFUTED  (confirmed natural cause of death directly contradicts "killed by")
+
 Other rules:
   • "Rs." means Sri Lankan Rupees.
   • If the source covers a different time period than the claim, treat as NEUTRAL.
   • If the snippet cuts off before the key fact, treat as NEUTRAL not REFUTED.
+  • HISTORICAL FACTS — a claim about a past event (appointment, election, ruling, record)
+    cannot be REFUTED by a source describing a LATER event. If the claim says "X was the
+    first Y appointed" and a source says "X was later replaced by Z", that is NEUTRAL —
+    it does not undo the original appointment. Only REFUTE if the source directly contradicts
+    the original fact (e.g. "X was never appointed" or "the appointment was cancelled").
+
+  Example:
+    Claim: "Sri Lanka appointed its first woman CID Director"
+    Source: "SSP Abeysekara replaced SSP Muthumala as CID Director."
+    → NEUTRAL  (replacement does not negate the historic first appointment)
+
+  • SUPERLATIVE / UNIQUENESS CLAIMS — if the claim contains words like "first", "only",
+    "never", "largest", "youngest", "only ever", you MUST evaluate whether the source
+    confirms OR contradicts that specific superlative, not just the underlying event.
+
+    A source can SUPPORT the main event but also REFUTE the superlative. In that case,
+    classify as REFUTED — factual accuracy of the superlative is part of the claim.
+
+    SUPERLATIVE OVERRIDE RULE — if ANY part of a source contains phrases like:
+      "first in X years", "first since [year]", "X-th time", "second time", "third time",
+      "in two decades", "in nearly a century", "for the first time since"
+    when the claim asserts "first ever" or "first [descriptor]" — that phrase ALONE is
+    enough to classify the entire source as REFUTED. Do not let the primary topic of the
+    source (e.g., appointment confirmed) override this. The superlative contradiction wins.
+
+  Examples for claim: "Harini Amarasuriya became the first female Prime Minister of Sri Lanka"
+
+    Source: "Harini Amarasuriya was sworn in as Sri Lanka's prime minister, the first
+            woman to hold the office in 24 years."
+    → REFUTED  ("first in 24 years" directly contradicts "first female PM ever")
+
+    Source: "Sri Lanka's new president reappoints Amarasuriya as PM ... making her the
+            first woman to head the national government in 24 years."
+    → REFUTED  ("first woman ... in 24 years" directly contradicts "first female PM" —
+                even though the rest of the article confirms the appointment, the
+                superlative override rule applies: classify as REFUTED)
+
+    Source: "The president selected his ally Harini Amarasuriya as prime minister,
+            choosing a woman for the third time in the country's history."
+    → REFUTED  ("third time" explicitly means she is NOT the first — superlative override)
+
+    Source: "Sirimavo Bandaranaike became the world's first female prime minister on
+            July 21, 1960."
+    → REFUTED  (establishes that a woman held the PM role before Harini)
+
+    Source: "Harini Amarasuriya was sworn in as prime minister on September 24, 2024."
+    → NEUTRAL  (confirms appointment but says NOTHING about whether she is the first —
+                do NOT classify as SUPPORTED; the superlative is unverified)
+
+    Source (from parliamentary records): "Cabinet: Prime Minister Dr. Harini Amarasuriya,
+            Minister of Education..."
+    → NEUTRAL  (lists her as PM but does not verify "first female" — do not classify
+                as SUPPORTED just because it confirms the appointment)
+
+    Claim: "Sri Lanka appointed its first female CID Director"
+    Source: "SSP Muthumala was appointed Sri Lanka's first female CID Director."
+    → SUPPORTED  (directly and explicitly confirms the superlative "first female")
 
 Return ONLY a valid JSON array. No markdown, no explanation outside the array.
 Each element: {"index": <int>, "label": "SUPPORTED"|"REFUTED"|"NEUTRAL",
-               "confidence": <float 0.0-1.0 representing YOUR CERTAINTY in the classification, e.g. 0.9 if clearly NEUTRAL, NOT how much the source supports the claim>, "reason": "<one sentence>"}"""
+               "confidence": <float 0.0-1.0 representing YOUR CERTAINTY in the classification, e.g. 0.9 if clearly NEUTRAL, NOT how much the source supports the claim>,
+               "reason": "<one sentence>",
+               "relevant": <true|false — true if this source contains information that directly addresses the specific claim (the persons, events, dates, or facts explicitly named in the claim); false if it was retrieved by keyword similarity but is actually about unrelated events, different persons, or a different time period and does not help verify or refute the claim>}"""
 
 
 class GroqVerifier:
@@ -194,9 +279,10 @@ class GroqVerifier:
                 label = item.get('label', 'NEUTRAL').upper()
                 if label not in ('SUPPORTED', 'REFUTED', 'NEUTRAL'):
                     label = 'NEUTRAL'
-                conf  = float(item.get('confidence', 0.5))
-                reason = item.get('reason', '')
-                result_map[idx] = {'label': label, 'confidence': conf, 'reason': reason}
+                conf     = float(item.get('confidence', 0.5))
+                reason   = item.get('reason', '')
+                relevant = bool(item.get('relevant', True))  # default True so unknown → kept
+                result_map[idx] = {'label': label, 'confidence': conf, 'reason': reason, 'relevant': relevant}
 
             # Build output list in original source order
             results = []
@@ -204,11 +290,109 @@ class GroqVerifier:
                 if i in result_map:
                     results.append(result_map[i])
                 else:
-                    results.append({'label': 'NEUTRAL', 'confidence': 0.5, 'reason': 'No response'})
+                    results.append({'label': 'NEUTRAL', 'confidence': 0.5, 'reason': 'No response', 'relevant': True})
 
+            results = self._apply_superlative_overrides(claim, results, sources)
             print(f"  [GroqVerifier] Batch complete — {len(results)} verdicts from 1 API call")
             return results
 
         except Exception as e:
             print(f"  [GroqVerifier] Batch verification failed: {e}")
             return []
+
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _apply_superlative_overrides(claim: str, results: List[Dict], sources: List[Dict]) -> List[Dict]:
+        """
+        Deterministic post-processing layer applied after Groq's NLI output.
+
+        Motivation: Groq's temperature-0 output is non-deterministic on compound
+        superlative claims (e.g. "first female PM") because long source articles
+        have a strong primary-topic signal (appointment confirmed) that sometimes
+        drowns out a buried superlative-contradicting phrase ("in 24 years",
+        "third time"). Two deterministic override rules address this:
+
+        Override 1 — Contradiction detection (any label → REFUTED):
+            If the claim contains a superlative ("first", "only", "never") and the
+            source text contains an explicit phrase that contradicts "first ever"
+            ("first X in N years", "third time", "since YYYY", etc.), force REFUTED.
+
+        Override 2 — False SUPPORTED detection (SUPPORTED → NEUTRAL):
+            If the claim asserts a superlative and the source is SUPPORTED but
+            the source text does not contain any "first ever" confirmation
+            ("first female", "first time ever", "inaugural", etc.), downgrade
+            to NEUTRAL. Sources confirming the underlying event (e.g. "she was
+            sworn in as PM") without confirming the "first" qualifier should not
+            count as evidence that the superlative is true.
+        """
+        claim_lower = claim.lower()
+        superlative_triggers = ['first', 'only', 'never', 'largest', 'youngest', 'only ever']
+        if not any(w in claim_lower for w in superlative_triggers):
+            return results
+
+        # ── Override 1 patterns ──────────────────────────────────────────────
+        # Each pattern catches an explicit contradiction of "first ever":
+        #   • "first/only X in N years"            → not first ever
+        #   • "for the Nth time / second/third time"→ not first ever
+        #   • "since YYYY" (historical year)        → someone came before
+        #   • "world's first" in a source about a DIFFERENT person → predecessor exists
+        contradiction_patterns = [
+            re.compile(r'\bfirst\b.{3,100}?\bin\s+\d+\s+years?\b',  re.IGNORECASE),
+            re.compile(r'\bonly\b.{3,80}?\bin\s+\d+\s+years?\b',    re.IGNORECASE),
+            re.compile(r'\b(?:second|third|fourth|fifth)\s+time\b',  re.IGNORECASE),
+            re.compile(r'\bfor\s+the\s+\w+\s+time\s+in\b',          re.IGNORECASE),
+            re.compile(r'\bsince\s+(?:19|20)\d{2}\b',               re.IGNORECASE),
+            re.compile(r"\bworld'?s?\s+first\b",                     re.IGNORECASE),
+            re.compile(r'\bin\s+(?:nearly\s+)?\d+\s+(?:years?|decades?)\b', re.IGNORECASE),
+        ]
+
+        # ── Override 2 patterns ──────────────────────────────────────────────
+        # Phrases that confirm a "first ever" superlative (any of these present →
+        # Groq's SUPPORTED verdict is reasonable; leave it alone).
+        first_ever_confirmers = [
+            re.compile(r'\bfirst\s+(?:ever|female|woman|man|person|time\b)', re.IGNORECASE),
+            re.compile(r'\bfirst\s+in\s+(?:the\s+)?(?:history|country|nation)',    re.IGNORECASE),
+            re.compile(r'\bhistoric(?:al)?\s+first\b',                             re.IGNORECASE),
+            re.compile(r'\binaugural\b',                                            re.IGNORECASE),
+            re.compile(r'\bpioneer(?:ing)?\b',                                      re.IGNORECASE),
+        ]
+
+        overrides_applied = 0
+        for i, result in enumerate(results):
+            src_idx = i  # results are already in source order (0-based)
+            if src_idx >= len(sources):
+                continue
+
+            src = sources[src_idx]
+            text = (
+                src.get('snippet', '')
+                or src.get('content', '')
+                or src.get('passage', '')
+                or ''
+            )
+
+            # Override 1: explicit contradiction → REFUTED
+            overridden = False
+            for pat in contradiction_patterns:
+                if pat.search(text):
+                    if result['label'] != 'REFUTED':
+                        result['label']      = 'REFUTED'
+                        result['confidence'] = max(result.get('confidence', 0.85), 0.85)
+                        result['reason']     = '[Override-1] Superlative contradiction phrase detected in source text.'
+                        overrides_applied   += 1
+                    overridden = True
+                    break
+
+            # Override 2: SUPPORTED but no "first ever" confirmation → NEUTRAL
+            if not overridden and result['label'] == 'SUPPORTED':
+                has_first_ever = any(pat.search(text) for pat in first_ever_confirmers)
+                if not has_first_ever:
+                    result['label']      = 'NEUTRAL'
+                    result['confidence'] = max(result.get('confidence', 0.85), 0.85)
+                    result['reason']     = '[Override-2] Source confirms event but contains no explicit superlative confirmation.'
+                    overrides_applied   += 1
+
+        if overrides_applied:
+            print(f"  [GroqVerifier] Superlative overrides applied to {overrides_applied} source(s).")
+        return results

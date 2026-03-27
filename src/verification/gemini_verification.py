@@ -811,22 +811,14 @@ RECOMMENDATIONS:
 """
         return summary.strip()
     
-    def explain_weighting_decisions(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None) -> str:
+    def explain_weighting_decisions(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None, claim_bias: Dict = None) -> str:
         """
-        Generate natural language explanations for why sources received specific weights
-        
-        Args:
-            claim: The original claim being fact-checked
-            weighted_evidence: List of evidence with calculated weights
-            final_verdict: The final verdict from the weighting algorithm
-            temporal_context: Information about breaking news and temporal factors
-            
-        Returns:
-            Human-readable explanation of weighting decisions
+        Generate natural language explanations for why sources received specific weights.
+        claim_bias: dict of claim-level bias dimensions from ClaimAwareBiasAnalyzer.
         """
         try:
             # Build explanation prompt with temporal context
-            prompt = self._build_weighting_explanation_prompt(claim, weighted_evidence, final_verdict, temporal_context)
+            prompt = self._build_weighting_explanation_prompt(claim, weighted_evidence, final_verdict, temporal_context, claim_bias)
 
             # Get Gemini's explanation with retry logic
             response_text = self._make_api_request_with_retry(prompt, "weighting explanation")
@@ -836,13 +828,13 @@ RECOMMENDATIONS:
         except Exception as e:
             return f"Error generating weighting explanations: {str(e)}"
 
-    def stream_explanation(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None):
+    def stream_explanation(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None, claim_bias: Dict = None):
         """
         Stream the explanation token-by-token using Gemini's streaming API.
         Yields text chunks as they arrive so the frontend can display them immediately.
         Falls back to the blocking method if streaming fails.
         """
-        prompt = self._build_weighting_explanation_prompt(claim, weighted_evidence, final_verdict, temporal_context)
+        prompt = self._build_weighting_explanation_prompt(claim, weighted_evidence, final_verdict, temporal_context, claim_bias)
 
         for model_name in self.model_names:
             try:
@@ -858,10 +850,10 @@ RECOMMENDATIONS:
                 continue
 
         # All streaming attempts failed — fall back to blocking call
-        yield self.explain_weighting_decisions(claim, weighted_evidence, final_verdict, temporal_context)
+        yield self.explain_weighting_decisions(claim, weighted_evidence, final_verdict, temporal_context, claim_bias)
 
 
-    def _build_weighting_explanation_prompt(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None) -> str:
+    def _build_weighting_explanation_prompt(self, claim: str, weighted_evidence: List[Dict], final_verdict: Dict, temporal_context: Dict = None, claim_bias: Dict = None) -> str:
         """Build prompt for explaining weighting decisions with temporal awareness"""
         
         # Format weighted evidence for explanation
@@ -917,6 +909,48 @@ YOU MUST EMPHASIZE IN YOUR EXPLANATION:
 4. Recommend checking back for updates as story develops
 """
         
+        # Build claim bias section
+        claim_bias_section = ""
+        if claim_bias:
+            bias_lines = []
+
+            # Framing and tone
+            framing = claim_bias.get("framing_type", "")
+            tone = claim_bias.get("emotional_tone", None)
+            political = claim_bias.get("political_direction", "")
+            if framing:
+                bias_lines.append(f"- Framing type: {framing}")
+            if tone is not None:
+                tone_label = "positive" if tone > 0.3 else "negative" if tone < -0.3 else "neutral"
+                bias_lines.append(f"- Emotional tone: {tone_label} ({tone:+.2f})")
+            if political:
+                bias_lines.append(f"- Political direction: {political}")
+
+            # Loaded phrases
+            loaded_phrases = claim_bias.get("loaded_phrases", [])
+            if loaded_phrases:
+                phrase_list = ", ".join(f'"{p}"' for p in loaded_phrases[:5])
+                bias_lines.append(f"- Loaded/charged language: {phrase_list}")
+
+            # Sri Lankan-specific flags
+            sl_flags = []
+            if claim_bias.get("gender_bias_signal"):
+                sl_flags.append("gender-first framing or gender stereotyping")
+            if claim_bias.get("ethnic_bias_signal"):
+                sl_flags.append("ethnic/communal framing")
+            if claim_bias.get("trauma_trivialization"):
+                sl_flags.append("trivialisation of historical trauma")
+            if sl_flags:
+                bias_lines.append(f"- Sri Lankan-specific bias patterns detected: {'; '.join(sl_flags)}")
+
+            # LLaMA explanation of the claim's bias
+            llm_explanation = claim_bias.get("explanation", "")
+            if llm_explanation:
+                bias_lines.append(f"- AI bias analysis: {llm_explanation}")
+
+            if bias_lines:
+                claim_bias_section = "\n\nCLAIM-LEVEL BIAS ANALYSIS:\nThe fact-checking system also analysed the claim itself for bias:\n" + "\n".join(bias_lines) + "\n"
+
         prompt = f"""
 You are an expert in explaining automated fact-checking algorithms to users.
 
@@ -931,7 +965,7 @@ FINAL VERDICT:
 - Confidence: {final_verdict.get('confidence', 0):.1%}
 - Support: {final_verdict.get('support_score', 0):.1%}
 - Refute: {final_verdict.get('refute_score', 0):.1%}
-{temporal_warning}
+{temporal_warning}{claim_bias_section}
 
 ALGORITHM EXPLANATION TASK:
 Your job is to explain in simple terms WHY each source received its specific weight. For each key source, show:
@@ -944,7 +978,7 @@ Your job is to explain in simple terms WHY each source received its specific wei
 Focus on 3-4 most influential sources as examples. Show the actual content that drove the algorithm's decisions.
 
 EXAMPLE FORMAT FOR EACH SOURCE:
-"Source X (government website) said: 'The Standing Orders clearly state that the Speaker has authority to remove DSGs without parliamentary approval.' 
+"Source X (government website) said: 'The Standing Orders clearly state that the Speaker has authority to remove DSGs without parliamentary approval.'
 
 NLI Analysis: This directly contradicts the claim (confidence: 95%) because it states the Speaker DOES have authority.
 
@@ -953,7 +987,14 @@ Bias Alignment: As a government source, this statement goes against typical gove
 Final Weight: 1.05 (high authority × high confidence × low bias penalty)"
 
 Keep it educational and show how the research algorithm works step-by-step. Use real examples from the sources above.
-"""
+{f'''
+IMPORTANT — CLAIM BIAS EXPLANATION:
+After explaining the source weights, add a dedicated section titled "## Bias in the Claim Itself" that explains to the reader:
+- What biases or loaded language were detected in the claim as written
+- Why these patterns matter for accurate fact-checking
+- How this may influence how the claim is interpreted (e.g., gender-first framing foregrounds gender over other attributes; loaded language can create emotional bias before evidence is considered)
+Use plain, accessible language so a general reader can understand.
+''' if claim_bias_section else ''}"""
         return prompt
 
 def main():
