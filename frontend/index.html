@@ -377,11 +377,43 @@
       font-weight: 700;
     }
 
-    .verdict-SUPPORTED    { color: var(--lime); }
-    .verdict-REFUTED      { color: var(--red); }
-    .verdict-CONFLICTING  { color: var(--orange); }
-    .verdict-UNCERTAIN    { color: var(--text-dim); }
-    .verdict-PRELIMINARY  { color: var(--orange); }
+    /* 5-point verdict scale */
+    .verdict-VERIFIED       { color: #4caf50; }
+    .verdict-MOSTLY_TRUE    { color: #8bc34a; }
+    .verdict-PARTIALLY_TRUE { color: #ff9800; }
+    .verdict-MOSTLY_FALSE   { color: #ff5722; }
+    .verdict-REFUTED        { color: #f44336; }
+    .verdict-UNCERTAIN      { color: var(--text-dim); }
+    .verdict-PRELIMINARY    { color: var(--orange); }
+    /* Legacy aliases kept for individual source badges */
+    .verdict-SUPPORTED      { color: var(--lime); }
+    .verdict-CONFLICTING    { color: var(--orange); }
+
+    /* Verdict scale bar */
+    .verdict-scale {
+      display: flex;
+      gap: 3px;
+      margin-top: 6px;
+      margin-bottom: 2px;
+      height: 5px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .verdict-scale-seg {
+      flex: 1;
+      border-radius: 2px;
+      opacity: 0.35;
+      transition: opacity .2s;
+    }
+    .verdict-scale-seg.active { opacity: 1.0; }
+    .verdict-sublabel {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
 
     /* Progress bars */
     .bar-block { margin-top: 20px; }
@@ -599,6 +631,15 @@
       padding-left: 10px;
     }
 
+    .ev-reason {
+      font-size: 11px;
+      font-style: italic;
+      opacity: 0.75;
+      margin-bottom: 8px;
+      padding-left: 10px;
+      border-left: 2px solid currentColor;
+    }
+
     .ev-meta {
       display: flex;
       gap: 14px;
@@ -612,6 +653,33 @@
       color: var(--text-dim);
     }
     .ev-meta-item span { color: var(--text); }
+
+    .wexp-details {
+      margin-top: 8px;
+      border-top: 1px solid var(--border);
+      padding-top: 6px;
+    }
+    .wexp-details summary {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .wexp-details summary:hover { color: var(--text); }
+    .wexp-body {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: var(--surface2, rgba(255,255,255,0.03));
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.7;
+      color: var(--text-dim);
+    }
+    .wexp-line:first-child { color: var(--text); font-weight: 600; }
 
     /* =====================================================================
        BIAS ANALYSIS
@@ -709,6 +777,26 @@
       padding: 14px 16px;
       margin-bottom: 10px;
     }
+    /* Informational card — pattern detected but not penalised */
+    .bias-source-card-info {
+      border-left-color: rgba(200,100,200,.5);
+      opacity: 0.9;
+    }
+    .bias-sl-patterns-section { margin-top: 4px; }
+    .bias-sl-patterns-note {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-dim);
+      margin-left: 8px;
+    }
+    .bias-sl-info-note {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 8px;
+      font-style: italic;
+    }
     .bias-source-top {
       display: flex;
       justify-content: space-between;
@@ -732,6 +820,20 @@
       border-radius: 2px;
       color: var(--orange);
     }
+    .bias-tag-srctype { color: #7ab8f5; border-color: #7ab8f5; }
+    .bias-sl-flags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .bias-sl-flag {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 2px 7px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    .bias-sl-gender  { background: rgba(200,100,200,.15); color: #c864c8; border: 1px solid #c864c8; }
+    .bias-sl-ethnic  { background: rgba(255,80,80,.12);  color: #e05050; border: 1px solid #e05050; }
+    .bias-sl-trauma  { background: rgba(150,150,150,.15); color: #999;   border: 1px solid #888;   }
     .bias-clean-msg {
       font-size: 12px;
       color: var(--text-dim);
@@ -1213,6 +1315,13 @@
           <span class="divergence-label">Source Divergence</span>
           <span class="divergence-value" id="divergence-value">—</span>
         </div>
+        <!-- Claim-level bias analysis block -->
+        <div id="claim-bias-block" style="display:none;margin-top:16px;padding:12px 14px;border:1px solid rgba(200,255,0,.15);border-radius:6px;background:rgba(200,255,0,.03)">
+          <div style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--lime);margin-bottom:8px">Claim-Level Bias</div>
+          <div id="claim-bias-sl-flags" style="display:none;margin-bottom:8px"></div>
+          <div id="claim-bias-phrases" style="display:none;margin-bottom:8px"></div>
+          <div id="claim-bias-explanation" style="display:none;font-size:.78rem;color:var(--text-dim);line-height:1.55"></div>
+        </div>
         <div id="bias-sources-list" style="margin-top:16px"></div>
         <div id="bias-patterns-section" style="display:none; margin-top:20px">
           <div class="bias-sources-header" style="margin-bottom:12px">Cross-Source Bias Patterns</div>
@@ -1370,17 +1479,41 @@
         `<div class="result-claim">"${escapeHtml(data.claim)}"</div>`;
 
       // --- Verdict rows ---
-      const verdictKey = verdictClass(data.verdict);
-      const biasedCount = (data.sources || []).filter(s => s.bias_alignment > 0.8).length;
+      const verdictKey  = verdictClass(data.verdict);
+      const verdictMeta = _VERDICT_META[verdictKey] || _VERDICT_META.UNCERTAIN;
+      // Count bias flags separately: weight-penalised vs SL-specific patterns
+      const penalisedCount = (data.sources || []).filter(s => s.bias_alignment > 0.15).length;
+      const slPatternCount  = (data.sources || []).filter(s =>
+        s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization
+      ).length;
+      // Union: sources that have ANY bias signal (penalty OR pattern)
+      const biasedCount = (data.sources || []).filter(s =>
+        s.bias_alignment > 0.15 || s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization
+      ).length;
 
-      const rows = [
-        { label: 'Verdict',                value: data.verdict,                         cls: `result-row-value verdict-${verdictKey}` },
-        { label: 'Confidence',             value: fmtPct(data.confidence),              cls: 'result-row-value' },
-        { label: 'Sources Evaluated',      value: String(data.total_sources),           cls: 'result-row-value' },
-        { label: 'Biased Sources Flagged', value: String(biasedCount),                  cls: 'result-row-value orange-c' },
+      // Verdict row: large label + sublabel + 5-step scale
+      document.getElementById('results-rows').innerHTML += `
+        <div class="result-row" style="align-items:flex-start">
+          <span class="result-row-label">Verdict</span>
+          <span class="result-row-value" style="display:flex;flex-direction:column;gap:2px">
+            <span class="verdict-${verdictKey}" style="font-size:15px;font-weight:700">${escapeHtml(verdictMeta.label)}</span>
+            <span class="verdict-sublabel">${escapeHtml(verdictMeta.sub)}</span>
+            ${verdictScaleHtml(verdictKey)}
+          </span>
+        </div>`;
+
+      const infoRows = [
+        { label: 'Confidence',             value: fmtPct(data.confidence),    cls: 'result-row-value' },
+        { label: 'Sources Evaluated',      value: String(data.total_sources),  cls: 'result-row-value' },
+        {
+          label: 'Bias Signals Detected',
+          value: biasedCount === 0 ? '0'
+               : `${biasedCount}${penalisedCount > 0 ? ` (${penalisedCount} weight-penalised` + (slPatternCount > 0 ? `, ${slPatternCount} pattern-flagged)` : ')') : slPatternCount > 0 ? ` (${slPatternCount} SL pattern)` : ''}`,
+          cls: biasedCount > 0 ? 'result-row-value orange-c' : 'result-row-value',
+        },
       ];
 
-      document.getElementById('results-rows').innerHTML += rows.map(r =>
+      document.getElementById('results-rows').innerHTML += infoRows.map(r =>
         `<div class="result-row">
           <span class="result-row-label">${escapeHtml(r.label)}</span>
           <span class="${r.cls}">${escapeHtml(r.value)}</span>
@@ -1438,6 +1571,10 @@
 
         const snippet = s.snippet ? escapeHtml(s.snippet) : '';
         const dateStr = s.date ? escapeHtml(s.date) : '';
+        const verdictReason = s.verdict_reason ? escapeHtml(s.verdict_reason) : '';
+        const weightExp = s.weight_explanation
+          ? s.weight_explanation.split('\n').map(l => `<div class="wexp-line">${escapeHtml(l)}</div>`).join('')
+          : '';
 
         return `
         <div class="ev-card">
@@ -1447,11 +1584,13 @@
           </div>
           <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
           ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
+          ${verdictReason ? `<div class="ev-reason verdict-${vLabel}">${verdictReason}</div>` : ''}
           <div class="ev-meta">
             <span class="ev-meta-item">Conf <span>${conf}</span></span>
             <span class="ev-meta-item">Weight <span>${weight}</span></span>
             <span class="ev-meta-item">Bias Align <span>${bias}</span></span>
           </div>
+          ${weightExp ? `<details class="wexp-details"><summary>Weight breakdown</summary><div class="wexp-body">${weightExp}</div></details>` : ''}
         </div>`;
       });
 
@@ -1462,10 +1601,11 @@
     // Bias analysis
     // -----------------------------------------------------------------------
     const _SENSITIVITY_LABELS = {
-      political: 'political ×0.50 · framing ×0.30 · emotional ×0.20',
-      economic:  'framing ×0.60 · emotional ×0.30 · political ×0.10',
-      legal:     'framing ×0.60 · political ×0.20 · emotional ×0.20',
-      general:   'emotional ×0.50 · framing ×0.45 · political ×0.05',
+      political:   'political ×0.40 · framing ×0.25 · ethnic ×0.10 · emotional ×0.15 · trauma ×0.05 · gender ×0.05',
+      economic:    'framing ×0.50 · emotional ×0.25 · political ×0.10 · gender ×0.05 · ethnic ×0.05 · trauma ×0.05',
+      legal:       'framing ×0.50 · political ×0.15 · emotional ×0.15 · trauma ×0.10 · gender ×0.05 · ethnic ×0.05',
+      milestone:   'all dims ×0.01–0.03 — milestone claim, max bias penalty capped at ~6%',
+      general:     'emotional ×0.35 · framing ×0.35 · gender ×0.10 · ethnic ×0.10 · trauma ×0.05 · political ×0.05',
     };
 
     function renderBias(claimBias, divergenceLevel, biasSources) {
@@ -1476,6 +1616,53 @@
       document.getElementById('bias-framing').textContent   = claimBias.framing_type    || '—';
       document.getElementById('bias-political').textContent = claimBias.political_direction || '—';
       document.getElementById('divergence-value').textContent = divergenceLevel;
+
+      // --- Claim-level bias block ---
+      const claimBlock = document.getElementById('claim-bias-block');
+      const claimSLFlags = document.getElementById('claim-bias-sl-flags');
+      const claimPhrases = document.getElementById('claim-bias-phrases');
+      const claimExpl = document.getElementById('claim-bias-explanation');
+
+      const slFlagHtmlClaim = [
+        claimBias.gender_bias_signal    ? '<span class="bias-sl-flag bias-sl-gender">gender-first framing</span>' : '',
+        claimBias.ethnic_bias_signal    ? '<span class="bias-sl-flag bias-sl-ethnic">ethnic bias</span>'           : '',
+        claimBias.trauma_trivialization ? '<span class="bias-sl-flag bias-sl-trauma">trauma trivialisation</span>' : '',
+      ].filter(Boolean).join('');
+
+      const loadedPhrases = claimBias.loaded_phrases || [];
+      const tone_val = claimBias.emotional_tone ?? 0;
+      const framingNonNeutral = claimBias.framing_type && claimBias.framing_type !== 'neutral';
+      const toneNonNeutral = Math.abs(tone_val) > 0.2;
+      // Show the block whenever there is any noteworthy claim-level signal.
+      // Fall back to showing if framing or tone is non-neutral so the block
+      // is always visible even when LLM skips SL flags / loaded phrases.
+      const hasAnything = slFlagHtmlClaim || loadedPhrases.length || claimBias.explanation
+                          || framingNonNeutral || toneNonNeutral;
+
+      if (hasAnything) {
+        claimBlock.style.display = 'block';
+        if (slFlagHtmlClaim) {
+          claimSLFlags.style.display = 'block';
+          claimSLFlags.innerHTML = '<span style="font-size:.75rem;color:var(--text-dim);margin-right:6px">SL patterns:</span>' + slFlagHtmlClaim;
+        } else {
+          claimSLFlags.style.display = 'none';
+        }
+        if (loadedPhrases.length) {
+          claimPhrases.style.display = 'block';
+          claimPhrases.innerHTML = '<span style="font-size:.75rem;color:var(--text-dim);margin-right:6px">Loaded language:</span>' +
+            loadedPhrases.map(p => `<span class="bias-phrase">"${escapeHtml(p)}"</span>`).join('');
+        } else {
+          claimPhrases.style.display = 'none';
+        }
+        if (claimBias.explanation) {
+          claimExpl.style.display = 'block';
+          claimExpl.textContent = claimBias.explanation;
+        } else {
+          claimExpl.style.display = 'none';
+        }
+      } else {
+        claimBlock.style.display = 'none';
+      }
 
       const tone = claimBias.emotional_tone ?? 0;  // −1 to +1
       const tonePct = Math.round(((tone + 1) / 2) * 100);
@@ -1489,29 +1676,57 @@
 
       // Per-source bias breakdown
       const container = document.getElementById('bias-sources-list');
-      const flagged = (biasSources || []).filter(s => s.alignment > 0.5);
+      const flagged    = (biasSources || []).filter(s => s.alignment > 0.15);
+      // SL-specific pattern flags (gender/ethnic/trauma) — shown even below penalty threshold
+      const slFlagged  = (biasSources || []).filter(s =>
+        s.alignment <= 0.15 && (s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization)
+      );
+
       // Reset patterns section on new result
       document.getElementById('bias-patterns-section').style.display = 'none';
       document.getElementById('bias-patterns-body').innerHTML = '';
       maybeShowBiasPatternBtn(flagged.length);
-      if (!flagged.length) {
+
+      if (!flagged.length && !slFlagged.length) {
         const total = (biasSources || []).length;
         container.innerHTML = `
           <div class="bias-sources-header">Penalised Sources (0)</div>
           <div class="bias-clean-msg">
-            No sources were penalised for this claim.
-            ${total > 0 ? `All ${total} source${total > 1 ? 's' : ''} passed the bias signal gate — no loaded language, emotional bias, or political lean was detected.` : ''}
+            No sources exceeded the bias penalty threshold for this claim.
+            ${total > 0 ? `All ${total} source${total > 1 ? 's' : ''} had bias alignment ≤ 0.15 — any detected bias was too weak to meaningfully affect source weights.` : ''}
             <button class="bias-clean-explain-btn" onclick="getBiasExplanation()">Why were no sources flagged?</button>
           </div>`;
         document.getElementById('bias-explain-btn').style.display = 'none';
         return;
       }
 
+      // SL pattern section — shown when gender/ethnic/trauma detected but below penalty threshold
+      if (!flagged.length && slFlagged.length) {
+        container.innerHTML = `
+          <div class="bias-sources-header">Penalised Sources (0)</div>
+          <div class="bias-clean-msg">
+            No sources exceeded the weight-penalty threshold (alignment ≤ 0.15).
+            However, ${slFlagged.length} source${slFlagged.length > 1 ? 's' : ''} show
+            Sri Lankan-specific bias patterns below the penalty threshold — see below.
+            <button class="bias-clean-explain-btn" onclick="getBiasExplanation()">Why were no sources penalised?</button>
+          </div>
+          <div class="bias-sl-patterns-section">
+            <div class="bias-sources-header" style="margin-top:14px">
+              Sri Lankan Bias Patterns Detected (${slFlagged.length})
+              <span class="bias-sl-patterns-note">informational — not weight-penalised for this claim type</span>
+            </div>
+            ${slFlagged.map(s => _renderSlPatternCard(s)).join('')}
+          </div>`;
+        document.getElementById('bias-explain-btn').style.display = 'none';
+        return;
+      }
+
       const _weights = {
-        political: {emotional: 0.20, political: 0.50, framing: 0.30},
-        economic:  {emotional: 0.30, political: 0.10, framing: 0.60},
-        legal:     {emotional: 0.20, political: 0.20, framing: 0.60},
-        general:   {emotional: 0.50, political: 0.05, framing: 0.45},
+        political:   {emotional: 0.15, political: 0.40, framing: 0.25, gender: 0.05, ethnic: 0.10, trauma: 0.05},
+        economic:    {emotional: 0.25, political: 0.10, framing: 0.50, gender: 0.05, ethnic: 0.05, trauma: 0.05},
+        legal:       {emotional: 0.15, political: 0.15, framing: 0.50, gender: 0.05, ethnic: 0.05, trauma: 0.10},
+        milestone:   {emotional: 0.03, political: 0.03, framing: 0.03, gender: 0.01, ethnic: 0.01, trauma: 0.01},
+        general:     {emotional: 0.35, political: 0.05, framing: 0.35, gender: 0.10, ethnic: 0.10, trauma: 0.05},
       };
       const W = _weights[claimType] || _weights.general;
 
@@ -1525,13 +1740,24 @@
             : '';
 
           // Dimension rows — score × weight = contribution
-          const emoProx  = bd.emotional_proximity  ?? 0;
-          const polMatch = bd.political_match_blended ?? bd.political_match_llm ?? 0;
-          const framMatch = bd.framing_match ?? 0;
+          const emoProx   = bd.emotional_proximity   ?? 0;
+          const polMatch  = bd.political_match_blended ?? bd.political_match_llm ?? 0;
+          const framMatch = bd.framing_match          ?? 0;
+          const genMatch  = bd.gender_bias_match      ?? 0;
+          const ethMatch  = bd.ethnic_bias_match      ?? 0;
+          const trauMatch = bd.trauma_bias_match      ?? 0;
 
           function dimBar(value, color) {
             return `<div class="bias-dim-bar-wrap"><div class="bias-dim-bar" style="width:${Math.round(value*100)}%;background:${color}"></div></div>`;
           }
+
+          // Sri Lankan-specific flag badges
+          const slFlags = bd.sri_lankan_bias_flags || {};
+          const slFlagHtml = [
+            slFlags.gender ? '<span class="bias-sl-flag bias-sl-gender">gender bias</span>' : '',
+            slFlags.ethnic ? '<span class="bias-sl-flag bias-sl-ethnic">ethnic bias</span>' : '',
+            slFlags.trauma ? '<span class="bias-sl-flag bias-sl-trauma">trauma trivialisation</span>' : '',
+          ].filter(Boolean).join('');
 
           const dimRows = `
             <div class="bias-dim-row">
@@ -1551,7 +1777,28 @@
               ${dimBar(framMatch, 'rgba(100,180,255,.6)')}
               <span class="bias-dim-value">${framMatch.toFixed(2)}</span>
               <span class="bias-dim-weight">×${W.framing.toFixed(2)}</span>
-            </div>`;
+            </div>
+            ${genMatch > 0 || slFlags.gender ? `
+            <div class="bias-dim-row">
+              <span class="bias-dim-name">Gender</span>
+              ${dimBar(genMatch, 'rgba(200,100,200,.6)')}
+              <span class="bias-dim-value">${genMatch.toFixed(2)}</span>
+              <span class="bias-dim-weight">×${W.gender.toFixed(2)}</span>
+            </div>` : ''}
+            ${ethMatch > 0 || slFlags.ethnic ? `
+            <div class="bias-dim-row">
+              <span class="bias-dim-name">Ethnic</span>
+              ${dimBar(ethMatch, 'rgba(255,80,80,.6)')}
+              <span class="bias-dim-value">${ethMatch.toFixed(2)}</span>
+              <span class="bias-dim-weight">×${W.ethnic.toFixed(2)}</span>
+            </div>` : ''}
+            ${trauMatch > 0 || slFlags.trauma ? `
+            <div class="bias-dim-row">
+              <span class="bias-dim-name">Trauma</span>
+              ${dimBar(trauMatch, 'rgba(150,150,150,.6)')}
+              <span class="bias-dim-value">${trauMatch.toFixed(2)}</span>
+              <span class="bias-dim-weight">×${W.trauma.toFixed(2)}</span>
+            </div>` : ''}`;
 
           // Profile note
           let profileNote = '';
@@ -1568,6 +1815,11 @@
             </div>`;
           }
 
+          // Source type badge
+          const srcTypeBadge = s.source_type && s.source_type !== 'unknown'
+            ? `<span class="bias-tag bias-tag-srctype">${escapeHtml(s.source_type.replace('_', ' '))}</span>`
+            : '';
+
           // Penalty estimate: alignment × 0.5 × 100 ≈ % credibility reduction
           const penaltyPct = Math.round(s.alignment * 50);
 
@@ -1578,8 +1830,10 @@
               <span class="bias-source-tags">
                 ${s.framing_type ? `<span class="bias-tag">${escapeHtml(s.framing_type)}</span>` : ''}
                 ${s.political_direction ? `<span class="bias-tag">${escapeHtml(s.political_direction)}</span>` : ''}
+                ${srcTypeBadge}
               </span>
             </div>
+            ${slFlagHtml ? `<div class="bias-sl-flags">${slFlagHtml}</div>` : ''}
             ${phrases}
             ${s.explanation ? `<div class="bias-source-expl">${escapeHtml(s.explanation)}</div>` : ''}
             <div class="bias-why-section">
@@ -1592,7 +1846,38 @@
               </div>
             </div>
           </div>`;
-        }).join('')}`;
+        }).join('')}
+        ${slFlagged.length ? `
+        <div class="bias-sl-patterns-section">
+          <div class="bias-sources-header" style="margin-top:14px">
+            Sri Lankan Bias Patterns Detected (${slFlagged.length})
+            <span class="bias-sl-patterns-note">informational — not weight-penalised for this claim type</span>
+          </div>
+          ${slFlagged.map(s => _renderSlPatternCard(s)).join('')}
+        </div>` : ''}`;
+    }
+
+    function _renderSlPatternCard(s) {
+      const flags = [
+        s.gender_bias_signal    ? '<span class="bias-sl-flag bias-sl-gender">gender-first framing</span>' : '',
+        s.ethnic_bias_signal    ? '<span class="bias-sl-flag bias-sl-ethnic">ethnic bias</span>'           : '',
+        s.trauma_trivialization ? '<span class="bias-sl-flag bias-sl-trauma">trauma trivialisation</span>' : '',
+      ].filter(Boolean).join('');
+      const srcType = s.source_type && s.source_type !== 'unknown'
+        ? `<span class="bias-tag bias-tag-srctype">${escapeHtml(s.source_type.replace('_',' '))}</span>` : '';
+      return `
+      <div class="bias-source-card bias-source-card-info">
+        <div class="bias-source-top">
+          <span class="bias-source-name">${escapeHtml(s.source || 'Unknown source')}</span>
+          <span class="bias-source-tags">${srcType}</span>
+        </div>
+        <div class="bias-sl-flags">${flags}</div>
+        ${s.explanation ? `<div class="bias-source-expl">${escapeHtml(s.explanation)}</div>` : ''}
+        <div class="bias-sl-info-note">
+          Alignment score: ${(s.alignment || 0).toFixed(3)} — below the 0.15 penalty threshold for
+          this claim type. Pattern detected for transparency; source weight not reduced.
+        </div>
+      </div>`;
     }
 
     // -----------------------------------------------------------------------
@@ -1835,14 +2120,48 @@
       document.getElementById(pctId).textContent          = `${pct}%`;
     }
 
+    // 5-point verdict scale helpers
+    const _VERDICT_META = {
+      VERIFIED:       { label: 'True',           sub: 'Verified',               color: '#4caf50', step: 4 },
+      MOSTLY_TRUE:    { label: 'Mostly True',     sub: 'Largely Supported',      color: '#8bc34a', step: 3 },
+      PARTIALLY_TRUE: { label: 'Partially True',  sub: 'Mixed Evidence',         color: '#ff9800', step: 2 },
+      MOSTLY_FALSE:   { label: 'Mostly False',    sub: 'Largely Contradicted',   color: '#ff5722', step: 1 },
+      REFUTED:        { label: 'False',           sub: 'Refuted',                color: '#f44336', step: 0 },
+      UNCERTAIN:      { label: 'Unverified',      sub: 'Insufficient Evidence',  color: '#888888', step: -1 },
+      // legacy — kept so old cached results still render
+      SUPPORTED:      { label: 'True',            sub: 'Verified',               color: '#4caf50', step: 4 },
+      CONFLICTING:    { label: 'Partially True',  sub: 'Mixed Evidence',         color: '#ff9800', step: 2 },
+    };
+
     function verdictClass(verdict) {
       if (!verdict) return 'UNCERTAIN';
-      const v = verdict.toUpperCase();
-      if (v.includes('SUPPORTED'))    return 'SUPPORTED';
-      if (v.includes('REFUTED'))      return 'REFUTED';
-      if (v.includes('CONFLICTING'))  return 'CONFLICTING';
-      if (v.includes('PRELIMINARY'))  return 'PRELIMINARY';
+      const v = verdict.replace(/\s|\(PRELIMINARY\)/gi, '_').toUpperCase().replace(/_+$/, '');
+      if (_VERDICT_META[v]) return v;
+      if (v.includes('VERIFIED'))        return 'VERIFIED';
+      if (v.includes('MOSTLY_TRUE'))     return 'MOSTLY_TRUE';
+      if (v.includes('PARTIALLY_TRUE'))  return 'PARTIALLY_TRUE';
+      if (v.includes('MOSTLY_FALSE'))    return 'MOSTLY_FALSE';
+      if (v.includes('REFUTED'))         return 'REFUTED';
+      if (v.includes('SUPPORTED'))       return 'SUPPORTED';
+      if (v.includes('CONFLICTING'))     return 'CONFLICTING';
+      if (v.includes('PRELIMINARY'))     return 'PRELIMINARY';
       return 'UNCERTAIN';
+    }
+
+    function verdictScaleHtml(key) {
+      const steps = [
+        { k: 'REFUTED',        color: '#f44336' },
+        { k: 'MOSTLY_FALSE',   color: '#ff5722' },
+        { k: 'PARTIALLY_TRUE', color: '#ff9800' },
+        { k: 'MOSTLY_TRUE',    color: '#8bc34a' },
+        { k: 'VERIFIED',       color: '#4caf50' },
+      ];
+      const meta = _VERDICT_META[key] || _VERDICT_META.UNCERTAIN;
+      const segs = steps.map(s =>
+        `<div class="verdict-scale-seg${s.k === key || (key === 'SUPPORTED' && s.k === 'VERIFIED') || (key === 'CONFLICTING' && s.k === 'PARTIALLY_TRUE') ? ' active' : ''}"
+              style="background:${s.color}"></div>`
+      ).join('');
+      return `<div class="verdict-scale">${segs}</div>`;
     }
 
     function normaliseVerdict(v) {
