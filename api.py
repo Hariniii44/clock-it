@@ -156,6 +156,7 @@ app.add_middleware(
 class VerifyRequest(BaseModel):
     claim: str
     skip_gemini: bool = True  # Gemini skipped by default; use /explain for on-demand
+    disable_bias: bool = False  # Set True to disable bias-aware weighting (ablation study)
 
 
 class ExplainRequest(BaseModel):
@@ -193,7 +194,7 @@ class VerifyResponse(BaseModel):
 #   {"type": "error",  "message": "..."}               — fatal, stop
 #   {"type": "result", "data": {...}, "_cache": {...}}  — final result
 # ---------------------------------------------------------------------------
-async def _pipeline_steps(claim: str, m: dict):
+async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
     loop = asyncio.get_running_loop()
 
     # ------------------------------------------------------------------
@@ -409,15 +410,20 @@ async def _pipeline_steps(claim: str, m: dict):
     # ------------------------------------------------------------------
     # STAGE 2 RELEVANCE FILTER: Groq relevance flag
     # ------------------------------------------------------------------
-    # Groq read each source in full to perform NLI — it can definitively
-    # judge relevance. Trust it completely for DB sources.
-    # Web sources are exempt: short Serper snippets can look off-topic
-    # even when the full page is useful.
+    # Groq read each source in full during NLI — it can definitively
+    # judge relevance.
+    # DB sources: always apply.
+    # Web sources: apply only when the snippet is long enough (>100 chars)
+    #   for Groq to make a reliable call. Short Serper snippets can look
+    #   off-topic even when the full page is useful, so we skip those.
     if len(groq_batch) == len(all_evidence):
         irrelevant_indices = {
             i for i, gr in enumerate(groq_batch)
             if not gr.get('relevant', True)
-            and all_evidence[i].get('evidence_type') == 'database'
+            and (
+                all_evidence[i].get('evidence_type') == 'database'
+                or len(all_evidence[i].get('snippet', '')) > 100
+            )
         }
         if irrelevant_indices:
             print(f"  [GroqRelevance] Dropping {len(irrelevant_indices)} DB source(s) flagged irrelevant by Groq:")
@@ -452,9 +458,9 @@ async def _pipeline_steps(claim: str, m: dict):
     framing_result = {
         "sources": [
             {
-                "index": s["index"],
-                "source": (all_evidence[s["index"]].get("source", "") if s["index"] < len(all_evidence) else ""),
-                "title": (all_evidence[s["index"]].get("title", "") if s["index"] < len(all_evidence) else ""),
+                "index": i,
+                "source": (all_evidence[i].get("source", "") if i < len(all_evidence) else ""),
+                "title":  (all_evidence[i].get("title",  "") if i < len(all_evidence) else ""),
                 "framing_type": s["framing_type"],
                 "consistency_with_profile": "unknown",
                 "loaded_phrases": s["loaded_phrases"],
@@ -469,7 +475,7 @@ async def _pipeline_steps(claim: str, m: dict):
                 "trauma_trivialization": s.get("trauma_trivialization", False),
                 "source_type":           s.get("source_type", "unknown"),
             }
-            for s in bias_result["sources"]
+            for i, s in enumerate(bias_result["sources"])
         ],
         "divergence_level": _compute_divergence(bias_result["sources"]),
         "cross_source_divergence": _divergence_summary(bias_result["sources"], claim_bias),
@@ -479,6 +485,7 @@ async def _pipeline_steps(claim: str, m: dict):
     weighted_evidence = m["weighter"].weight_all_evidence(
         claim, all_evidence, verification_results, bias_analyses,
         framing_analyses=framing_result, precomputed_alignments=precomputed_alignments,
+        disable_bias=disable_bias,
     )
     base_verdict = m["verdict_generator"].generate_verdict(weighted_evidence)
     temporal_adjusted_confidence = (
@@ -620,7 +627,7 @@ async def verify_claim(request: VerifyRequest):
     claim = request.claim.strip()
     result_data = None
 
-    async for event in _pipeline_steps(claim, _models):
+    async for event in _pipeline_steps(claim, _models, disable_bias=request.disable_bias):
         if event["type"] == "error":
             raise HTTPException(status_code=422, detail=event["message"])
         if event["type"] == "result":
@@ -658,7 +665,7 @@ async def verify_claim_stream(request: VerifyRequest):
 
     async def generate():
         try:
-            async for event in _pipeline_steps(claim, _models):
+            async for event in _pipeline_steps(claim, _models, disable_bias=request.disable_bias):
                 cache = event.pop("_cache", None)
                 if cache:
                     _cache_store(claim, cache)
