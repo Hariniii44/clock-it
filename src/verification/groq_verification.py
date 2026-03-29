@@ -152,7 +152,7 @@ Return ONLY a valid JSON array. No markdown, no explanation outside the array.
 Each element: {"index": <int>, "label": "SUPPORTED"|"REFUTED"|"NEUTRAL",
                "confidence": <float 0.0-1.0 representing YOUR CERTAINTY in the classification, e.g. 0.9 if clearly NEUTRAL, NOT how much the source supports the claim>,
                "reason": "<one sentence>",
-               "relevant": <true|false — true if this source contains information that directly addresses the specific claim (the persons, events, dates, or facts explicitly named in the claim); false if it was retrieved by keyword similarity but is actually about unrelated events, different persons, or a different time period and does not help verify or refute the claim>}"""
+               "relevant": <true|false — ONLY mark false if the source is about completely different entities, people, or topics with NO connection to the claim (e.g. claim is about NPP reforms but source is about a mosque attack). A source that covers the same topic/entity but a different time period (e.g. claim says "100 days" but source covers "one year") is still relevant=true — it provides useful context even if the timeframe differs. When in doubt, default to true.>}"""
 
 
 class GroqVerifier:
