@@ -312,71 +312,89 @@ class EvidenceWeighter:
         # No year mentions in content — mild uncertainty
         return 0.85
 
-    def _get_recency_weight(self, evidence: Dict) -> float:
+    def _get_recency_weight(self, evidence: Dict, claim: str = '') -> float:
         """
-        Calculate recency weight - newer sources get higher weight for factual claims
+        Calculate recency weight.
+
+        For current/recent claims: newer sources score higher (proximity to today).
+        For historical claims (claim references a specific past year): recency is
+        measured as proximity to the claimed year instead of proximity to today.
+        A 2021 article about a 2020 claim is contemporary reporting and should not
+        be penalised just because it is now several years old.
+
+        Historical claim detection: if the claim contains a four-digit year that is
+        more than one year in the past, the claim is treated as historical and the
+        nearest such year is used as the reference point.
         """
-        try:
-            # Try to extract date from evidence metadata
+        import re
+        from datetime import datetime
+
+        # Determine whether this is a historical claim and, if so, which year to
+        # use as the reference point.
+        current_year = datetime.now().year
+        claim_years = [int(y) for y in re.findall(r'\b(?:19|20)\d{2}\b', claim)]
+        historical_years = [y for y in claim_years if current_year - y > 1]
+        is_historical = bool(historical_years)
+
+        def _parse_date(evidence: Dict):
+            """Return a datetime parsed from the evidence date field or URL, or None."""
             date_str = evidence.get('date', '')
             if date_str:
-                # Parse date and calculate recency score
-                from datetime import datetime, timedelta
-                try:
-                    evidence_date = None
-                    for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y']:
-                        try:
-                            evidence_date = datetime.strptime(date_str[:10], fmt)
-                            break
-                        except Exception:
-                            continue
-                    if not evidence_date:
-                        for fmt in ['%b %d, %Y', '%B %d, %Y', '%d %b %Y', '%d %B %Y']:
-                            try:
-                                evidence_date = datetime.strptime(date_str, fmt)
-                                break
-                            except Exception:
-                                continue
-                    if not evidence_date:
-                        raise ValueError(f"Unparseable date: {date_str}")
-                    days_old = (datetime.now() - evidence_date).days
-                    
-                    # Heavy penalty for very old sources on factual claims
-                    if days_old > 365:  # Older than 1 year
-                        return 0.3
-                    elif days_old > 180:  # Older than 6 months
-                        return 0.6
-                    elif days_old > 90:   # Older than 3 months
-                        return 0.8
-                    else:  # Recent
-                        return 1.0
-                except:
-                    pass
-            
-            # Fallback: try to extract year from the URL itself
-            # e.g. newsfirst.lk/2022/09/04/... → 2022 → >1yr → 0.3
-            import re
+                for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y']:
+                    try:
+                        return datetime.strptime(date_str[:10], fmt)
+                    except Exception:
+                        pass
+                for fmt in ['%b %d, %Y', '%B %d, %Y', '%d %b %Y', '%d %B %Y']:
+                    try:
+                        return datetime.strptime(date_str, fmt)
+                    except Exception:
+                        pass
+            # Fall back to year extracted from URL (mid-year estimate)
             url = evidence.get('link', '') or evidence.get('url', '')
-            year_match = re.search(r'/(20\d{2})/', url)
-            if year_match:
-                from datetime import datetime
-                year = int(year_match.group(1))
-                days_old = (datetime.now() - datetime(year, 1, 1)).days
+            m = re.search(r'/(20\d{2})/', url)
+            if m:
+                return datetime(int(m.group(1)), 7, 1)
+            return None
+
+        try:
+            evidence_date = _parse_date(evidence)
+
+            if evidence_date is None:
+                return 0.7  # No date available — moderate default
+
+            if is_historical:
+                # Proximity to the nearest claimed year.
+                #   0–1 years from event  → 1.0  (contemporary reporting)
+                #   1–3 years from event  → 0.9  (near-contemporary)
+                #   >3 years from event   → 0.75 (retrospective — still useful)
+                nearest = min(historical_years, key=lambda y: abs(evidence_date.year - y))
+                years_from_event = abs(evidence_date.year - nearest)
+                if years_from_event <= 1:
+                    return 1.0
+                elif years_from_event <= 3:
+                    return 0.9
+                else:
+                    return 0.75
+            else:
+                # Original logic for current/recent claims.
+                days_old = (datetime.now() - evidence_date).days
                 if days_old > 365:
                     return 0.3
                 elif days_old > 180:
                     return 0.6
+                elif days_old > 90:
+                    return 0.8
+                else:
+                    return 1.0
 
-            # If still no date available, assume moderate recency
-            return 0.7
-            
-        except:
+        except Exception:
             return 0.7
 
     def calculate_evidence_weight(self, verification_confidence: float, bias_alignment: float,
                                  base_credibility: float = 0.7, evidence_url: str = None,
                                  evidence: Dict = None, framing_consistency: str = 'unknown',
-                                 claim: str = '') -> float:
+                                 claim: str = '', disable_bias: bool = False) -> float:
         """
         Enhanced evidence weighting with source credibility, authority, recency,
         and framing consistency.
@@ -398,7 +416,7 @@ class EvidenceWeighter:
         # Authority and recency weights
         dataset_source = evidence.get('dataset_source') if evidence else None
         authority_weight = self._get_authority_weight(evidence_url, dataset_source=dataset_source, evidence=evidence)
-        recency_weight = self._get_recency_weight(evidence) if evidence else 1.0
+        recency_weight = self._get_recency_weight(evidence, claim=claim) if evidence else 1.0
 
         # Bias penalty — adjusted by framing consistency
         # consistent   → 1.3× (expected bias behaviour, down-weight more)
@@ -406,7 +424,7 @@ class EvidenceWeighter:
         # unknown      → 1.0× (no change)
         _consistency_multiplier = {'consistent': 1.3, 'inconsistent': 0.6, 'unknown': 1.0}
         consistency_mult = _consistency_multiplier.get(framing_consistency, 1.0)
-        bias_penalty = bias_alignment * 0.5 * consistency_mult
+        bias_penalty = 0.0 if disable_bias else bias_alignment * 0.5 * consistency_mult
 
         # Cross-encoder relevance score (set on web sources by RelevanceFilter).
         # Qdrant sources don't have this field — default to 1.0 (no penalty).
@@ -428,7 +446,8 @@ class EvidenceWeighter:
     def weight_all_evidence(self, claim: str, evidence_list: List[Dict],
                             verification_results: List[Dict], bias_analyses: List[Dict],
                             framing_analyses: Dict = None,
-                            precomputed_alignments: List[float] = None) -> List[Dict]:
+                            precomputed_alignments: List[float] = None,
+                            disable_bias: bool = False) -> List[Dict]:
         """
         Weight all evidence pieces with enhanced bias profiling.
 
@@ -468,6 +487,7 @@ class EvidenceWeighter:
                 evidence=evidence,
                 framing_consistency=framing_consistency,
                 claim=claim,
+                disable_bias=disable_bias,
             )
 
             explanation = self._generate_weight_explanation(
@@ -786,7 +806,8 @@ class VerdictGenerator:
         else:
             diversity_boost = diversity_score * 0.05  # Standard boost
         
-        # --- 5-point verdict scale -----------------------------------------------
+        # --- 6-label verdict system ----------------------------------------------
+        # 5 labels on the truth scale + 1 off-scale label for no active evidence.
         # Verdict is driven by support_pct (fraction of active weight that supports
         # the claim). The scale is symmetric and continuous:
         #
@@ -796,7 +817,8 @@ class VerdictGenerator:
         #  0.35–0.60      PARTIALLY_TRUE   Partial / Mixed Evidence
         #  0.20–0.35      MOSTLY_FALSE     Mostly False / Largely Contradicted
         #  < 0.20         REFUTED          False / Refuted
-        #  (no active)    UNCERTAIN        Unverified / Insufficient Evidence
+        #  active_count<2 UNCERTAIN        Unverified / Insufficient Evidence
+        #                                  (off-scale — no sources took a position)
         #
         # This replaces the binary SUPPORTED/REFUTED split and correctly handles
         # claims that are partially true (e.g. appointment confirmed, but "first
