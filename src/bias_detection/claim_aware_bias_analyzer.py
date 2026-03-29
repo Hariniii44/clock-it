@@ -575,75 +575,83 @@ class ClaimAwareBiasAnalyzer:
         # print("=" * 60 + "\n")
         # # ─────────────────────────────────────────────────────────────────
 
-        try:
-            from groq import Groq
-            client = Groq(api_key=self.api_key)
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {'role': 'system', 'content': SYSTEM_PROMPT},
-                    {'role': 'user',   'content': user_prompt},
-                ],
-                temperature=0.0,
-                max_tokens=3072,
-            )
-            raw = response.choices[0].message.content.strip()
+        import time
+        last_error = None
+        for attempt in range(2):
+            try:
+                from groq import Groq
+                client = Groq(api_key=self.api_key)
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {'role': 'system', 'content': SYSTEM_PROMPT},
+                        {'role': 'user',   'content': user_prompt},
+                    ],
+                    temperature=0.0,
+                    max_tokens=3072,
+                )
+                raw = response.choices[0].message.content.strip()
 
-            if raw.startswith('```'):
-                raw = raw.split('```')[1]
-                if raw.startswith('json'):
-                    raw = raw[4:]
-            raw = raw.strip()
+                if raw.startswith('```'):
+                    raw = raw.split('```')[1]
+                    if raw.startswith('json'):
+                        raw = raw[4:]
+                raw = raw.strip()
 
-            parsed = json.loads(raw)
+                parsed = json.loads(raw)
 
-            # Normalise claim_bias
-            cb = parsed.get('claim_bias', {})
-            raw_claim_type = cb.get('claim_type', 'general').lower()
-            if raw_claim_type not in ('political', 'economic', 'legal', 'milestone', 'general'):
-                raw_claim_type = 'general'
-            claim_bias = {
-                'claim_type':            raw_claim_type,
-                'emotional_tone':        float(cb.get('emotional_tone', 0.0)),
-                'political_direction':   cb.get('political_direction', 'neutral'),
-                'framing_type':          cb.get('framing_type', 'neutral'),
-                'gender_bias_signal':    bool(cb.get('gender_bias_signal', False)),
-                'ethnic_bias_signal':    bool(cb.get('ethnic_bias_signal', False)),
-                'trauma_trivialization': bool(cb.get('trauma_trivialization', False)),
-                'loaded_phrases':        cb.get('loaded_phrases', []),
-                'explanation':           cb.get('explanation', ''),
-            }
-
-            # Normalise sources, map to 0-based index order
-            _valid_source_types = {'news_media', 'official_data', 'expert_opinion', 'social_media', 'unknown'}
-            src_map = {}
-            for item in parsed.get('sources', []):
-                idx = int(item.get('index', 0)) - 1
-                raw_source_type = item.get('source_type', 'unknown')
-                if raw_source_type not in _valid_source_types:
-                    raw_source_type = 'unknown'
-                src_map[idx] = {
-                    'emotional_tone':        float(item.get('emotional_tone', 0.0)),
-                    'political_direction':   item.get('political_direction', 'neutral'),
-                    'framing_type':          item.get('framing_type', 'neutral'),
-                    'gender_bias_signal':    bool(item.get('gender_bias_signal', False)),
-                    'ethnic_bias_signal':    bool(item.get('ethnic_bias_signal', False)),
-                    'trauma_trivialization': bool(item.get('trauma_trivialization', False)),
-                    'source_type':           raw_source_type,
-                    'loaded_phrases':        item.get('loaded_phrases', []),
-                    'explanation':           item.get('explanation', ''),
+                # Normalise claim_bias
+                cb = parsed.get('claim_bias', {})
+                raw_claim_type = cb.get('claim_type', 'general').lower()
+                if raw_claim_type not in ('political', 'economic', 'legal', 'milestone', 'general'):
+                    raw_claim_type = 'general'
+                claim_bias = {
+                    'claim_type':            raw_claim_type,
+                    'emotional_tone':        float(cb.get('emotional_tone', 0.0)),
+                    'political_direction':   cb.get('political_direction', 'neutral'),
+                    'framing_type':          cb.get('framing_type', 'neutral'),
+                    'gender_bias_signal':    bool(cb.get('gender_bias_signal', False)),
+                    'ethnic_bias_signal':    bool(cb.get('ethnic_bias_signal', False)),
+                    'trauma_trivialization': bool(cb.get('trauma_trivialization', False)),
+                    'loaded_phrases':        cb.get('loaded_phrases', []),
+                    'explanation':           cb.get('explanation', ''),
                 }
 
-            sources_raw = [
-                src_map.get(i, self._default_source_raw())
-                for i in range(len(sources))
-            ]
+                # Normalise sources, map to 0-based index order
+                _valid_source_types = {'news_media', 'official_data', 'expert_opinion', 'social_media', 'unknown'}
+                src_map = {}
+                for item in parsed.get('sources', []):
+                    idx = int(item.get('index', 0)) - 1
+                    raw_source_type = item.get('source_type', 'unknown')
+                    if raw_source_type not in _valid_source_types:
+                        raw_source_type = 'unknown'
+                    src_map[idx] = {
+                        'emotional_tone':        float(item.get('emotional_tone', 0.0)),
+                        'political_direction':   item.get('political_direction', 'neutral'),
+                        'framing_type':          item.get('framing_type', 'neutral'),
+                        'gender_bias_signal':    bool(item.get('gender_bias_signal', False)),
+                        'ethnic_bias_signal':    bool(item.get('ethnic_bias_signal', False)),
+                        'trauma_trivialization': bool(item.get('trauma_trivialization', False)),
+                        'source_type':           raw_source_type,
+                        'loaded_phrases':        item.get('loaded_phrases', []),
+                        'explanation':           item.get('explanation', ''),
+                    }
 
-            return {'claim_bias': claim_bias, 'sources': sources_raw}
+                sources_raw = [
+                    src_map.get(i, self._default_source_raw())
+                    for i in range(len(sources))
+                ]
 
-        except Exception as e:
-            print(f"  [ClaimAwareBiasAnalyzer] Groq call failed: {e}")
-            return None
+                return {'claim_bias': claim_bias, 'sources': sources_raw}
+
+            except Exception as e:
+                last_error = e
+                print(f"  [ClaimAwareBiasAnalyzer] Groq call failed (attempt {attempt + 1}/2): {e}")
+                if attempt == 0:
+                    time.sleep(2)  # brief pause before retry
+
+        print(f"  [ClaimAwareBiasAnalyzer] Both attempts failed — using defaults. Last error: {last_error}")
+        return None
 
     # ------------------------------------------------------------------
     # Defaults
