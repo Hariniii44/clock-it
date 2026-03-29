@@ -111,14 +111,50 @@ class GoogleAIModeRetriever:
         domain = self._extract_domain(url)
         return any(s in domain for s in self.SOCIAL_MEDIA_DOMAINS)
 
+    def _is_navigation_content(self, text: str) -> bool:
+        """
+        Detect if extracted text is navigation/boilerplate rather than article body.
+
+        Jina AI Reader sometimes returns full page Markdown including nav menus
+        (e.g. '- [Home](/) - [About](/about) ...') for JS-heavy sites.
+        PDF readers sometimes return institutional headers before the actual text.
+
+        Returns True (= poor quality, discard) when:
+          • >65 % of non-empty lines are short (<60 chars) — nav menu pattern
+          • URL density >1 URL per 80 chars — link-list pages
+          • >30 % of lines are Markdown hyperlink bullets ('- [text](url)')
+        """
+        if not text:
+            return True
+        lines = [l for l in text.split('\n') if l.strip()]
+        if not lines:
+            return True
+
+        short_lines   = sum(1 for l in lines if len(l.strip()) < 60)
+        md_link_lines = sum(1 for l in lines if l.strip().startswith(('- [', '* [', '+ [')))
+        url_count     = text.count('http')
+
+        # Navigation-menu heuristic
+        if short_lines / len(lines) > 0.65:
+            return True
+        # Link-list / sitemap heuristic
+        if url_count > len(text) / 80:
+            return True
+        # Jina markdown-nav bullets heuristic
+        if len(lines) > 5 and md_link_lines / len(lines) > 0.30:
+            return True
+
+        return False
+
     def _fetch_with_trafilatura(self, url: str) -> str:
         """
-        Fetch and extract clean article text using trafilatura.
+        Fetch and extract clean article text.
 
         Strategy:
           1. Try AMP version first (pure static HTML, no JS rendering needed).
           2. Fall back to requests with browser-like headers (bypasses basic bot detection).
           3. Fall back to trafilatura's built-in fetch.
+          4. Fall back to Jina AI Reader (handles JS-rendered / dynamic pages).
         Returns empty string on failure.
         """
         import trafilatura
@@ -167,11 +203,27 @@ class GoogleAIModeRetriever:
         # --- Strategy 3: trafilatura built-in fetch (fallback) ---
         try:
             downloaded = trafilatura.fetch_url(url)
-            if not downloaded:
-                return ''
-            return _extract(downloaded)
+            if downloaded:
+                text = _extract(downloaded)
+                if text and len(text) > 200:
+                    return text
         except Exception:
-            return ''
+            pass
+
+        # --- Strategy 4: Jina AI Reader (handles JS-rendered / dynamic pages) ---
+        try:
+            jina_resp = requests.get(
+                f'https://r.jina.ai/{url}',
+                headers={'Accept': 'text/plain', 'User-Agent': 'Mozilla/5.0'},
+                timeout=15,
+            )
+            if jina_resp.status_code == 200 and len(jina_resp.text) > 200:
+                print(f"  jina: content fetched for {url}")
+                return jina_resp.text.strip()
+        except Exception:
+            pass
+
+        return ''
 
     def _enrich_with_full_content(self, references: List[Dict]) -> List[Dict]:
         """
@@ -211,19 +263,14 @@ class GoogleAIModeRetriever:
         enriched = 0
         for clean_url in news_urls:
             text = results.get(clean_url, '')
-            if text:
+            if text and not self._is_navigation_content(text):
                 content = text[:2000]
                 for ref in seen_urls[clean_url]:
                     ref['snippet'] = content
                     ref['full_content_fetched'] = True
                 enriched += len(seen_urls[clean_url])
-
-                # # --- TRAFILATURA EXTRACT OUTPUT ---
-                # print("\n" + "-"*60)
-                # print(f"TRAFILATURA — {clean_url}")
-                # print("-"*60)
-                # print(content)
-                # print("-"*60)
+            elif text:
+                print(f"  trafilatura: navigation/boilerplate detected for {clean_url} — keeping original snippet")
             else:
                 print(f"  trafilatura: no content extracted for {clean_url} — keeping snippet")
 
