@@ -105,6 +105,7 @@
       letter-spacing: -0.02em;
     }
     .nav-links {
+      display: none !important;
       display: flex;
       align-items: center;
       gap: 32px;
@@ -351,6 +352,17 @@
     .verdict-SUPPORTED      { color: #d4ff4e; }
     .verdict-CONFLICTING    { color: #ffb347; }
 
+    /* Light-mode overrides — lime (#d4ff4e) is invisible on white */
+    [data-theme="light"] .verdict-VERIFIED,
+    [data-theme="light"] .verdict-SUPPORTED      { color: #4d7a00; }
+    [data-theme="light"] .verdict-MOSTLY_TRUE    { color: #3a6010; }
+    [data-theme="light"] .verdict-PARTIALLY_TRUE { color: #b45309; }
+    [data-theme="light"] .verdict-MOSTLY_FALSE   { color: #c2410c; }
+    [data-theme="light"] .verdict-REFUTED        { color: #b91c1c; }
+    [data-theme="light"] .verdict-CONFLICTING    { color: #b45309; }
+    [data-theme="light"] .badge-SUPPORTED { background: rgba(77,122,0,.1); color: #4d7a00; border-color: rgba(77,122,0,.25); }
+    [data-theme="light"] .badge-REFUTED   { background: rgba(185,28,28,.1); color: #b91c1c; border-color: rgba(185,28,28,.25); }
+
     /* Verdict scale bar */
     .verdict-scale {
       display: flex;
@@ -540,6 +552,50 @@
       transition: border-color .2s, box-shadow .2s;
     }
     .ev-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(212,255,78,.08); }
+
+    .ev-card.ev-excluded {
+      opacity: 0.45;
+      border-style: dashed;
+      pointer-events: auto;
+    }
+    .ev-card.ev-excluded:hover { border-color: var(--border); box-shadow: none; opacity: 0.6; }
+    .ev-excluded-badge {
+      font-family: var(--mono);
+      font-size: 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--surface-raised, #2a2a2a);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .ev-excluded-reason {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-style: italic;
+    }
+    .ev-excluded-divider {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .ev-excluded-divider::before, .ev-excluded-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
 
     .ev-card-top {
       display: flex;
@@ -1493,7 +1549,12 @@
     // Evidence cards
     // -----------------------------------------------------------------------
     function renderEvidence(sources) {
-      document.getElementById('evidence-badge').textContent = sources.length;
+      const evaluated = sources.filter(s => !s.excluded);
+      const excluded  = sources.filter(s =>  s.excluded);
+
+      // Badge shows evaluated count; excluded count in parens if any
+      document.getElementById('evidence-badge').textContent =
+        excluded.length ? `${evaluated.length} (+${excluded.length})` : `${evaluated.length}`;
 
       if (!sources.length) {
         document.getElementById('evidence-grid').innerHTML =
@@ -1501,20 +1562,34 @@
         return;
       }
 
-      const cards = sources.map(s => {
+      function makeCard(s, isExcluded) {
         const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
         const titleHtml    = s.link
           ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
           : titleDisplay;
 
-        const vLabel = normaliseVerdict(s.verdict);
         const sourceDomain = s.source || extractDomain(s.link);
+        const dateStr = s.date ? escapeHtml(s.date) : '';
+        const snippet = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+
+        if (isExcluded) {
+          const reason = s.exclusion_reason ? escapeHtml(s.exclusion_reason) : 'Not evaluated';
+          return `
+          <div class="ev-card ev-excluded">
+            <div class="ev-card-top">
+              <div class="ev-title">${titleHtml}</div>
+              <span class="ev-excluded-badge">Not evaluated</span>
+            </div>
+            <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
+            ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
+            <div class="ev-excluded-reason">${reason}</div>
+          </div>`;
+        }
+
+        const vLabel = normaliseVerdict(s.verdict);
         const conf   = s.confidence != null ? fmtPct(s.confidence) : '—';
         const weight = s.weight       != null ? s.weight.toFixed(3) : '—';
         const bias   = s.bias_alignment != null ? s.bias_alignment.toFixed(2) : '—';
-
-        const snippet = s.snippet ? escapeHtml(s.snippet) : '';
-        const dateStr = s.date ? escapeHtml(s.date) : '';
         const verdictReason = s.verdict_reason ? escapeHtml(s.verdict_reason) : '';
         const weightExp = s.weight_explanation
           ? s.weight_explanation.split('\n').map(l => `<div class="wexp-line">${escapeHtml(l)}</div>`).join('')
@@ -1536,9 +1611,17 @@
           </div>
           ${weightExp ? `<details class="wexp-details"><summary>Weight breakdown</summary><div class="wexp-body">${weightExp}</div></details>` : ''}
         </div>`;
-      });
+      }
 
-      document.getElementById('evidence-grid').innerHTML = cards.join('');
+      const evaluatedHtml = evaluated.map(s => makeCard(s, false));
+      const excludedHtml  = excluded.map(s => makeCard(s, true));
+
+      const divider = excluded.length
+        ? [`<div class="ev-excluded-divider">Not used in verdict — social media (${excluded.length})</div>`]
+        : [];
+
+      document.getElementById('evidence-grid').innerHTML =
+        [...evaluatedHtml, ...divider, ...excludedHtml].join('');
     }
 
     // -----------------------------------------------------------------------
@@ -2121,6 +2204,25 @@
       if (!url) return '';
       try { return new URL(url).hostname.replace(/^www\./, ''); }
       catch { return url; }
+    }
+
+    function cleanSnippet(s) {
+      if (!s) return '';
+      return s
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // [text](url) → text
+        .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1') // images
+        .replace(/https?:\/\/\S+/g, '')             // bare URLs
+        .replace(/Title:\s*/i, '')                  // "Title: ..." prefix
+        .replace(/URL Source:\s*\S+/i, '')
+        .replace(/Published Time:\s*[^\n]+/i, '')
+        .replace(/Markdown Content:\s*/i, '')
+        .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')   // **bold** / *italic*
+        .replace(/#{1,6}\s+/g, '')                  // headings
+        .replace(/\n{2,}/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 220)
+        .replace(/\s+\S*$/, '…');                   // clean word boundary
     }
 
     function escapeHtml(s) {
