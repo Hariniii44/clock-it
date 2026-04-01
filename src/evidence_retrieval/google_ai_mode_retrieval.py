@@ -182,7 +182,7 @@ class GoogleAIModeRetriever:
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Referer': 'https://www.google.com/',
             }
-            resp = requests.get(amp_url, headers=headers, timeout=10)
+            resp = requests.get(amp_url, headers=headers, timeout=6)
             if resp.status_code == 200 and len(resp.text) > 500:
                 text = _extract(resp.text)
                 if text and len(text) > 200:
@@ -192,7 +192,7 @@ class GoogleAIModeRetriever:
 
         # --- Strategy 2: requests with browser headers (bypasses basic bot detection) ---
         try:
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(url, headers=headers, timeout=6)
             if resp.status_code == 200:
                 text = _extract(resp.text)
                 if text and len(text) > 200:
@@ -215,7 +215,7 @@ class GoogleAIModeRetriever:
             jina_resp = requests.get(
                 f'https://r.jina.ai/{url}',
                 headers={'Accept': 'text/plain', 'User-Agent': 'Mozilla/5.0'},
-                timeout=15,
+                timeout=10,
             )
             if jina_resp.status_code == 200 and len(jina_resp.text) > 200:
                 print(f"  jina: content fetched for {url}")
@@ -240,25 +240,45 @@ class GoogleAIModeRetriever:
             key = self._clean_url(ref['link'])
             seen_urls.setdefault(key, []).append(ref)
 
-        news_urls = [u for u in seen_urls if not self._is_social_media(u)]
-        social_urls = [u for u in seen_urls if self._is_social_media(u)]
+        # URLs with a substantial SerpAPI snippet (>150 chars) already give NLI
+        # enough to work with — skip full-content fetch for these.
+        # Only fetch for URLs with short/missing snippets where content matters.
+        SKIP_FETCH_SNIPPET_LEN = 150
+        news_urls_all = [u for u in seen_urls if not self._is_social_media(u)]
+        social_urls   = [u for u in seen_urls if self._is_social_media(u)]
 
-        print(f"  Content fetch: {len(news_urls)} news URLs via trafilatura (parallel), "
-              f"{len(social_urls)} social media URLs kept as snippets")
+        news_urls_fetch = [
+            u for u in news_urls_all
+            if len(seen_urls[u][0].get('snippet', '')) < SKIP_FETCH_SNIPPET_LEN
+        ]
+        news_urls_skip  = [u for u in news_urls_all if u not in set(news_urls_fetch)]
+        news_urls = news_urls_all  # keep original name for result loop below
 
-        # Fetch all news URLs in parallel (max 8 workers, 15s per request)
+        print(f"  Content fetch: {len(news_urls_fetch)}/{len(news_urls_all)} news URLs need fetch "
+              f"({len(news_urls_skip)} already have sufficient snippets), "
+              f"{len(social_urls)} social media kept as-is")
+
+        # Fetch only URLs that need it, in parallel
         results: dict = {}  # clean_url → text or ''
         with ThreadPoolExecutor(max_workers=8) as executor:
             future_to_url = {
                 executor.submit(self._fetch_with_trafilatura, url): url
-                for url in news_urls
+                for url in news_urls_fetch
             }
-            for future in as_completed(future_to_url, timeout=60):
-                url = future_to_url[future]
-                try:
-                    results[url] = future.result()
-                except Exception:
-                    results[url] = ''
+            try:
+                for future in as_completed(future_to_url, timeout=40):
+                    url = future_to_url[future]
+                    try:
+                        results[url] = future.result()
+                    except Exception:
+                        results[url] = ''
+            except TimeoutError:
+                # One or more fetches exceeded the wall-clock budget.
+                # Mark unfinished URLs as empty so partial results are kept.
+                for url in news_urls_fetch:
+                    if url not in results:
+                        results[url] = ''
+                        print(f"  trafilatura: fetch timed out for {url} — keeping snippet")
 
         enriched = 0
         for clean_url in news_urls:
