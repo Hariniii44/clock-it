@@ -377,6 +377,42 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
     total_sources = len(all_evidence)
 
     # ------------------------------------------------------------------
+    # SOCIAL MEDIA FILTER: exclude social media sources when sufficient
+    # real news/db sources exist with substantive content.
+    # Kept in response as excluded_sources (greyed out in UI) so users
+    # can see them but know they weren't used in the verdict.
+    # Threshold: ≥4 non-social sources with snippet > 100 chars.
+    # ------------------------------------------------------------------
+    SOCIAL_DOMAINS = {'facebook.com', 'x.com', 'twitter.com', 'instagram.com',
+                      'tiktok.com', 'linkedin.com', 'threads.net'}
+
+    def _is_social(ev):
+        domain = ev.get('source', '') or ''
+        try:
+            from urllib.parse import urlparse
+            domain = urlparse(ev.get('link', '')).netloc.lower() if not domain else domain
+        except Exception:
+            pass
+        return any(s in domain for s in SOCIAL_DOMAINS)
+
+    non_social_with_content = sum(
+        1 for e in all_evidence
+        if not _is_social(e) and len(e.get('snippet', '')) > 100
+    )
+    excluded_social = []
+    if non_social_with_content >= 4:
+        remaining, excluded_social = [], []
+        for e in all_evidence:
+            (excluded_social if _is_social(e) else remaining).append(e)
+        if excluded_social:
+            print(f"  [SocialFilter] Excluding {len(excluded_social)} social media source(s) "
+                  f"({non_social_with_content} substantive non-social sources available)")
+            all_evidence = remaining
+            db_sources_count  = sum(1 for e in all_evidence if e.get("evidence_type") == "database")
+            web_sources_count = sum(1 for e in all_evidence if e.get("evidence_type") == "web")
+            total_sources     = len(all_evidence)
+
+    # ------------------------------------------------------------------
     # STEP 2+3: NLI, per-source bias, claim-level bias — all concurrent
     # ------------------------------------------------------------------
     yield {"type": "status", "message": f"Found {total_sources} sources. Running verification and bias analysis..."}
@@ -521,6 +557,24 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
             "ethnic_bias_signal":    fe.get("ethnic_bias_signal", False),
             "trauma_trivialization": fe.get("trauma_trivialization", False),
             "source_type":           fe.get("source_type", "unknown"),
+        })
+
+    # Append excluded social media sources (greyed out in UI — not used in verdict)
+    for ev in excluded_social:
+        sources_out.append({
+            "title":         ev.get("title", ""),
+            "link":          ev.get("link", ""),
+            "source":        ev.get("source", ""),
+            "evidence_type": ev.get("evidence_type", "web"),
+            "snippet":       ev.get("snippet", ""),
+            "date":          ev.get("date", "") or ev.get("date_raw", ""),
+            "excluded":      True,
+            "exclusion_reason": "Social media — not evaluated (sufficient news sources available)",
+            # No verdict/weight fields — not processed through NLI or weighting
+            "verdict": None, "confidence": None, "weight": None,
+            "bias_alignment": None, "verdict_reason": "", "weight_explanation": "",
+            "gender_bias_signal": False, "ethnic_bias_signal": False,
+            "trauma_trivialization": False, "source_type": "social_media",
         })
 
     uncertainty = final_verdict.get("uncertainty_decomposition", {})
