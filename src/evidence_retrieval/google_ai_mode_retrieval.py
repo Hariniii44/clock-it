@@ -441,9 +441,52 @@ class GoogleAIModeRetriever:
     # Core: single Google AI Mode query
     # ------------------------------------------------------------------
 
+    def _google_search_fallback(self, query: str) -> Dict:
+        """
+        Fallback: regular Google Search via SerpAPI (engine=google).
+        Parses organic_results instead of references/text_blocks.
+        Used when google_ai_mode is temporarily unavailable.
+        """
+        from serpapi import GoogleSearch
+
+        params = {
+            'engine': 'google',
+            'q': query,
+            'hl': 'en',
+            'gl': 'lk',
+            'num': 10,
+            'api_key': self.serp_api_key,
+        }
+
+        search = GoogleSearch(params)
+        raw = search.get_dict()
+
+        if 'error' in raw:
+            print(f"  Google Search fallback error: {raw['error']}")
+            return {'references': [], 'synthesis': '', 'raw_response': raw}
+
+        references = []
+        for i, result in enumerate(raw.get('organic_results', [])):
+            url = result.get('link', '')
+            snippet = result.get('snippet', '')
+            references.append({
+                'title':       result.get('title', ''),
+                'snippet':     snippet,
+                'link':        url,
+                'source':      self._extract_domain(url),
+                'date':        self._parse_date_from_snippet(snippet),
+                'date_raw':    snippet[:50],
+                'position':    i,
+                'search_type': 'google_search',
+            })
+
+        print(f"  Google Search fallback: {len(references)} organic results retrieved")
+        return {'references': references, 'synthesis': '', 'raw_response': raw}
+
     def _google_ai_mode_query(self, query: str) -> Dict:
         """
         Execute a single Google AI Mode search via SerpAPI.
+        Falls back to regular Google Search if AI Mode is unavailable.
 
         Returns a dict with keys:
           references      — list of normalised evidence dicts
@@ -468,12 +511,13 @@ class GoogleAIModeRetriever:
             search = GoogleSearch(params)
             raw = search.get_dict()
 
-            # DEBUG: show what top-level keys came back
-            print(f"  [DEBUG] SerpAPI raw keys: {list(raw.keys())}")
-            if 'error' in raw:
-                print(f"  [DEBUG] SerpAPI error: {raw['error']}")
-            print(f"  [DEBUG] references count: {len(raw.get('references', []))}")
-            print(f"  [DEBUG] text_blocks count: {len(raw.get('text_blocks', []))}")
+            # If AI Mode returned an error, fall back to regular Google Search
+            if 'error' in raw or not raw.get('references') and not raw.get('text_blocks'):
+                if 'error' in raw:
+                    print(f"  Google AI Mode unavailable ({raw['error']}) — falling back to Google Search")
+                else:
+                    print(f"  Google AI Mode returned no content — falling back to Google Search")
+                return self._google_search_fallback(query)
 
             # Collect which reference indexes Google's synthesis actually cited
             cited_indexes: set = set()
@@ -526,19 +570,6 @@ class GoogleAIModeRetriever:
             if synthesis:
                 print(f"  Google synthesis: {synthesis[:150]}{'...' if len(synthesis) > 150 else ''}")
 
-            # --- DEBUG: print cited references and synthesis ---
-            print("\n" + "="*70)
-            print("GOOGLE AI MODE — CITED REFERENCES")
-            print("="*70)
-            print(f"Cited indexes: {sorted(cited_indexes)}")
-            print(f"\nReferences kept ({len(references)}):")
-            for r in references:
-                print(f"  [{r['position']}] {r['source']} — {r['title'][:80]}")
-                print(f"       snippet: {r['snippet'][:120]}")
-            print(f"\nSynthesis:\n{synthesis[:500]}")
-            print("="*70 + "\n")
-            # --- END DEBUG ---
-
             return {
                 'references': references,
                 'synthesis': synthesis,
@@ -547,7 +578,12 @@ class GoogleAIModeRetriever:
 
         except Exception as e:
             print(f"  Google AI Mode search error: {e}")
-            return {'references': [], 'synthesis': '', 'raw_response': {}}
+            print(f"  Falling back to Google Search...")
+            try:
+                return self._google_search_fallback(query)
+            except Exception as e2:
+                print(f"  Google Search fallback also failed: {e2}")
+                return {'references': [], 'synthesis': '', 'raw_response': {}}
 
     def _parse_date_from_snippet(self, snippet: str) -> str:
         """
