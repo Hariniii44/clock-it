@@ -15,6 +15,7 @@ class Config:
     SERPER_KEY = os.getenv('SERPER_API_KEY')
     TAVILY_API_KEY = os.getenv('TAVILY_API_KEY', '')
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     SERP_API_KEY = os.getenv('SERP_API_KEY', '')       # SerpAPI for Google AI Mode
 
     # QDRANT SETTINGS
