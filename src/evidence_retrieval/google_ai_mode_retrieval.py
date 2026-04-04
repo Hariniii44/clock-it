@@ -111,6 +111,88 @@ class GoogleAIModeRetriever:
         domain = self._extract_domain(url)
         return any(s in domain for s in self.SOCIAL_MEDIA_DOMAINS)
 
+    def _extract_key_entities(self, text: str) -> set:
+        """
+        Extract key entities (proper nouns, dates, locations) from text.
+        Used for title-content coherence check.
+        """
+        if not text or not self.nlp:
+            return set()
+        
+        # Simple keyword extraction using spaCy NER
+        doc = self.nlp(text[:500])  # First 500 chars for speed
+        entities = set()
+        
+        # Extract named entities
+        for ent in doc.ents:
+            if ent.label_ in {'GPE', 'ORG', 'PERSON', 'DATE', 'EVENT', 'PRODUCT'}:
+                entities.add(ent.text.lower())
+        
+        # Also extract capitalized words (potential proper nouns)
+        for token in doc:
+            if token.is_alpha and token.text[0].isupper() and len(token.text) > 3:
+                entities.add(token.text.lower())
+        
+        return entities
+    
+    def _title_content_coherence(self, title: str, content: str) -> float:
+        """
+        Check if fetched content actually matches what the title promises.
+        Returns overlap score (0.0 to 1.0).
+        
+        This catches cases where content fetch grabbed the wrong article
+        (e.g., title: "Sri Lanka fuel prices", content: "Malaysia cosmetics ban").
+        """
+        if not title or not content:
+            return 1.0  # No title to compare, assume coherent
+        
+        title_entities = self._extract_key_entities(title)
+        content_entities = self._extract_key_entities(content[:1000])
+        
+        if not title_entities:
+            return 1.0  # No entities in title, can't verify
+        
+        # Calculate Jaccard similarity
+        overlap = len(title_entities & content_entities)
+        union = len(title_entities | content_entities)
+        
+        return overlap / union if union > 0 else 0.0
+    
+    def _semantic_similarity(self, claim: str, content: str) -> float:
+        """
+        Calculate semantic similarity between claim and fetched content.
+        Uses sentence embeddings (sentence-transformers if available).
+        
+        Returns similarity score (0.0 to 1.0).
+        """
+        try:
+            # Try to use sentence-transformers if available
+            from sentence_transformers import SentenceTransformer
+            import numpy as np
+            
+            # Lazy-load model (cache it as instance variable)
+            if not hasattr(self, '_embedding_model'):
+                self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            
+            # Get embeddings
+            claim_emb = self._embedding_model.encode(claim, convert_to_tensor=False)
+            content_emb = self._embedding_model.encode(content[:500], convert_to_tensor=False)
+            
+            # Cosine similarity
+            similarity = np.dot(claim_emb, content_emb) / (
+                np.linalg.norm(claim_emb) * np.linalg.norm(content_emb)
+            )
+            
+            return float(similarity)
+        
+        except ImportError:
+            # Fallback: simple keyword overlap if sentence-transformers not available
+            claim_words = set(claim.lower().split())
+            content_words = set(content[:500].lower().split())
+            
+            overlap = len(claim_words & content_words)
+            return overlap / max(len(claim_words), 1)
+    
     def _is_navigation_content(self, text: str) -> bool:
         """
         Detect if extracted text is navigation/boilerplate rather than article body.
@@ -225,12 +307,17 @@ class GoogleAIModeRetriever:
 
         return ''
 
-    def _enrich_with_full_content(self, references: List[Dict]) -> List[Dict]:
+    def _enrich_with_full_content(self, references: List[Dict], claim: str = "") -> List[Dict]:
         """
         Fetch full article text for each reference in parallel:
           - Social media URLs  → keep original SerpAPI snippet (auth walls)
           - News/article URLs  → fetch via trafilatura (clean article extraction)
         Deduplicates by clean base URL so the same article is only fetched once.
+        
+        Hybrid relevance check before replacing snippet:
+          1. Title-content coherence: Does fetched content match the title?
+          2. Semantic similarity: Is fetched content relevant to the claim?
+        If either check fails, keep original SERP snippet instead.
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -280,22 +367,63 @@ class GoogleAIModeRetriever:
                         results[url] = ''
                         print(f"  trafilatura: fetch timed out for {url} — keeping snippet")
 
+        # Fallback statistics
         enriched = 0
+        navigation_fallback = 0
+        irrelevance_fallback = 0
+        
         for clean_url in news_urls:
             text = results.get(clean_url, '')
             if text and not self._is_navigation_content(text):
                 content = text[:2000]
-                for ref in seen_urls[clean_url]:
-                    ref['snippet'] = content
-                    ref['full_content_fetched'] = True
-                enriched += len(seen_urls[clean_url])
+                
+                # HYBRID RELEVANCE CHECK (NEW)
+                # Stage 1: Title-content coherence
+                first_ref = seen_urls[clean_url][0]
+                title = first_ref.get('title', '')
+                coherence_score = self._title_content_coherence(title, content)
+                
+                # Stage 2: Semantic similarity (if claim provided)
+                semantic_score = 1.0  # default: assume relevant
+                if claim:
+                    semantic_score = self._semantic_similarity(claim, content)
+                
+                # Thresholds
+                COHERENCE_THRESHOLD = 0.15  # At least 15% entity overlap between title and content
+                SEMANTIC_THRESHOLD = 0.25   # At least 25% similarity to claim
+                
+                # Decision: Use fetched content or fallback to SERP snippet?
+                if coherence_score < COHERENCE_THRESHOLD:
+                    # Fetched content doesn't match title (probably wrong article)
+                    print(f"  [Relevance] Title-content mismatch for {clean_url[:60]} "
+                          f"(coherence={coherence_score:.2f}) — keeping SERP snippet")
+                    irrelevance_fallback += len(seen_urls[clean_url])
+                    
+                elif claim and semantic_score < SEMANTIC_THRESHOLD:
+                    # Fetched content not relevant to claim
+                    print(f"  [Relevance] Content irrelevant for {clean_url[:60]} "
+                          f"(similarity={semantic_score:.2f}) — keeping SERP snippet")
+                    irrelevance_fallback += len(seen_urls[clean_url])
+                    
+                else:
+                    # Content passed both checks — use it
+                    for ref in seen_urls[clean_url]:
+                        ref['snippet'] = content
+                        ref['full_content_fetched'] = True
+                        ref['_coherence_score'] = coherence_score
+                        ref['_semantic_score'] = semantic_score
+                    enriched += len(seen_urls[clean_url])
+                    
             elif text:
                 print(f"  trafilatura: navigation/boilerplate detected for {clean_url} — keeping original snippet")
+                navigation_fallback += len(seen_urls[clean_url])
             else:
                 print(f"  trafilatura: no content extracted for {clean_url} — keeping snippet")
 
-        print(f"  Full content fetched for {enriched}/{len(references)} sources "
-              f"({len(references) - enriched} kept original snippets)")
+        print(f"  Content enrichment: {enriched} used fetched content, "
+              f"{navigation_fallback} navigation fallback, "
+              f"{irrelevance_fallback} irrelevance fallback, "
+              f"{len(references) - enriched - navigation_fallback - irrelevance_fallback} kept SERP snippets")
         return references
 
     def _is_blocked(self, url: str) -> bool:
@@ -339,6 +467,13 @@ class GoogleAIModeRetriever:
         try:
             search = GoogleSearch(params)
             raw = search.get_dict()
+
+            # DEBUG: show what top-level keys came back
+            print(f"  [DEBUG] SerpAPI raw keys: {list(raw.keys())}")
+            if 'error' in raw:
+                print(f"  [DEBUG] SerpAPI error: {raw['error']}")
+            print(f"  [DEBUG] references count: {len(raw.get('references', []))}")
+            print(f"  [DEBUG] text_blocks count: {len(raw.get('text_blocks', []))}")
 
             # Collect which reference indexes Google's synthesis actually cited
             cited_indexes: set = set()
@@ -514,8 +649,8 @@ class GoogleAIModeRetriever:
         # Sort by source priority (official > fact-checkers > news > unknown)
         references.sort(key=lambda r: self._get_source_priority(r['link']), reverse=True)
 
-        # Fetch full article content via Tavily Extract
-        references = self._enrich_with_full_content(references[:num_results])
+        # Fetch full article content with hybrid relevance check
+        references = self._enrich_with_full_content(references[:num_results], claim=claim)
 
         # Deduplicate by clean URL — same article shouldn't cast multiple NLI votes
         seen = set()
