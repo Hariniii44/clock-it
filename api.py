@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
     from src.evidence_retrieval.google_ai_mode_retrieval import GoogleAIModeRetriever
     from src.retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever as HybridRetriever
     from src.verification import ClaimVerifier
-    from src.verification.groq_verification import GroqVerifier
+    from src.verification.gemini_nli_verification import GeminiNLIVerifier
     from src.bias_detection import BiasDetector
     from src.bias_detection.claim_aware_bias_analyzer import ClaimAwareBiasAnalyzer
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
@@ -92,7 +92,8 @@ async def lifespan(app: FastAPI):
         )
         print("  Web retriever: Tavily")
 
-    _models["groq_verifier"] = GroqVerifier(groq_api_key=Config.GROQ_API_KEY)
+    _models["groq_verifier"] = GeminiNLIVerifier()
+    print("  GeminiNLIVerifier ready")
     _models["verifier"] = ClaimVerifier()
     print("  ClaimVerifier (DeBERTa) ready")
 
