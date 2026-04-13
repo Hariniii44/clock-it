@@ -113,8 +113,11 @@ class GeminiNLIVerifier:
 
     DEFAULT_MODELS = [
         "models/gemini-2.5-flash",
-        "models/gemini-2.0-flash",
-        "models/gemini-flash-latest",
+        "models/gemini-3-flash",
+        # "models/gemini-2.0-flash",
+        # "models/gemini-flash-latest",
+        "models/gemini-3.1-flash-lite",
+        "models/gemini-3.1-flash-lite"
     ]
 
     def __init__(
@@ -237,17 +240,45 @@ class GeminiNLIVerifier:
                 except Exception as e:
                     last_error = e
                     err_str = str(e)
-                    is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                    err_str = str(e)
+                    is_daily_quota = (
+                        "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                    ) and (
+                        "quota" in err_str.lower()
+                        or "daily" in err_str.lower()
+                        or "per day" in err_str.lower()
+                    )
+                    is_rate_limit = (
+                        ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str)
+                        and not is_daily_quota
+                    )
+                    is_connection_drop = (
+                        "RemoteProtocolError" in err_str
+                        or "Server disconnected" in err_str
+                        or "ConnectionError" in err_str
+                        or "ConnectTimeout" in err_str
+                    )
 
-                    if is_rate_limit and attempt < self.max_retries:
-                        delay = self._parse_retry_delay(err_str) or (2 ** attempt + random.uniform(0, 1))
-                        print(f"  [GeminiNLI] Rate limit on {model_name.split('/')[-1]}, "
+                    if is_daily_quota:
+                        # RPD exhausted — retrying won't help, move to next model immediately
+                        print(f"  [GeminiNLI] {model_name.split('/')[-1]} daily quota exhausted, "
+                              f"switching model")
+                        break
+
+                    if (is_rate_limit or is_connection_drop) and attempt < self.max_retries:
+                        if is_rate_limit:
+                            delay = self._parse_retry_delay(err_str) or (2 ** attempt + random.uniform(0, 1))
+                            reason = "rate limit"
+                        else:
+                            delay = 3.0 + attempt * 2 + random.uniform(0, 1)
+                            reason = "connection drop"
+                        print(f"  [GeminiNLI] {reason} on {model_name.split('/')[-1]}, "
                               f"retrying in {delay:.1f}s (attempt {attempt + 1}/{self.max_retries})")
                         time.sleep(delay)
                         continue
 
-                    # Non-rate-limit error or retries exhausted — try next model
-                    reason = "rate-limit retries exhausted" if is_rate_limit else f"error: {type(e).__name__}"
+                    # Permanent error or retries exhausted — try next model
+                    reason = f"error: {type(e).__name__}"
                     print(f"  [GeminiNLI] {model_name.split('/')[-1]} failed ({reason}), trying next model")
                     break
 
