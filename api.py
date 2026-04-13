@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
     from src.verification import ClaimVerifier
     from src.verification.gemini_nli_verification import GeminiNLIVerifier
     from src.bias_detection import BiasDetector
-    from src.bias_detection.claim_aware_bias_analyzer import ClaimAwareBiasAnalyzer
+    from src.bias_detection.claim_bias_analyzer import ClaimBiasAnalyzer
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
 
     _models["hybrid_retriever"] = HybridRetriever()
@@ -100,7 +100,8 @@ async def lifespan(app: FastAPI):
     _models["bias_detector"] = BiasDetector()
     print("  BiasDetector ready")
 
-    _models["claim_bias_analyzer"] = ClaimAwareBiasAnalyzer(groq_api_key=Config.GROQ_API_KEY)
+    _models["claim_bias_analyzer"] = ClaimBiasAnalyzer(gemini_api_key=Config.GEMINI_API_KEY)
+    print("  ClaimBiasAnalyzer (Gemini 2.5 Pro) ready")
 
     _models["weighter"] = EvidenceWeighter()
     _models["verdict_generator"] = VerdictGenerator()
