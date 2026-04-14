@@ -58,11 +58,9 @@ class GeminiClaimVerifier:
         
         # Model fallback configuration - using confirmed available models
         self.model_names = model_names or [
-            "models/gemini-2.5-flash",          # Primary: Current working model
-            "models/gemini-2.5-pro",            # Fallback 1: More capable, separate quota
-            "models/gemini-2.0-flash",          # Fallback 2: Older version, separate quota  
-            "models/gemini-flash-latest",       # Fallback 3: Always latest flash model
-            "models/gemini-pro-latest",         # Fallback 4: Always latest pro model
+            "models/gemini-2.5-flash",          # Primary
+            "models/gemini-2.5-flash-lite",     # Fallback 1: lighter 2.5, separate quota
+            "models/gemini-3-flash-preview",    # Fallback 2: preview, separate quota
         ]
         self.current_model_index = 0  # Start with first model
         self.model_usage_stats = {model: 0 for model in self.model_names}
