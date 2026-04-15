@@ -107,9 +107,10 @@ OTHER:
   "Rs." = Sri Lankan Rupees. Use today's date (provided in the user message) for temporal reasoning.
 
 REASON FIELD RULES:
-  - Write the reason for the source whose index you are currently outputting.
-  - Begin the reason with a short direct quote (3-8 words) from THAT source's text, then explain its relevance.
-  - Do NOT reference other sources by index number (e.g. do not write "Source [2]").
+  - The reason for index N must describe ONLY the text shown under [N] above.
+  - Begin with a verbatim quote (3-8 words) copied exactly from that source's quoted text.
+  - NEVER mention any other source index in a reason (no "Source [2]", no "[4] states", nothing).
+  - NEVER invent a date, quote, or fact not present in that source's text.
   - One sentence total.
 
 Return ONLY a valid JSON array — no markdown, no text outside the array.
