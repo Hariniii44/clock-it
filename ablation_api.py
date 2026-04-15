@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
         )
         print("  Web retriever: Tavily (fallback)")
 
-    _models["groq_verifier"] = GeminiNLIVerifier()
+    _models["nli_verifier"] = GeminiNLIVerifier()
     print("  GeminiNLIVerifier ready")
 
     _models["verifier"] = ClaimVerifier()

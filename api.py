@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
         )
         print("  Web retriever: Tavily")
 
-    _models["groq_verifier"] = GeminiNLIVerifier()
+    _models["nli_verifier"] = GeminiNLIVerifier()
     print("  GeminiNLIVerifier ready")
 
 
@@ -415,7 +415,7 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
 
     def _analysis():
         def _nli():
-            return m["groq_verifier"].verify_batch(claim, all_evidence)
+            return m["nli_verifier"].verify_batch(claim, all_evidence)
 
         def _claim_bias():
             return m["claim_bias_analyzer"].analyze(claim, all_evidence)
@@ -495,7 +495,7 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
                 "political_direction": s["political_direction"],
                 "alignment": s["alignment"],
                 "alignment_breakdown": s.get("alignment_breakdown", {}),
-                # Sri Lankan-specific bias flags (Deepanjalie/Mahoshadi interview findings)
+                # Sri Lankan-specific bias flags
                 "gender_bias_signal":    s.get("gender_bias_signal", False),
                 "ethnic_bias_signal":    s.get("ethnic_bias_signal", False),
                 "trauma_trivialization": s.get("trauma_trivialization", False),

@@ -3,8 +3,7 @@ gemini_nli_verification.py
 --------------------------
 Batch NLI verification using Google Gemini.
 
-Drop-in replacement for GroqVerifier — same interface:
-    verify_batch(claim, sources) -> List[{label, confidence, reason, relevant}]
+verify_batch(claim, sources) -> List[{label, confidence, reason, relevant}]
 
 Fixes applied over the original Groq verifier:
   1. Simplified, non-contradictory prompt (~300 words vs 800)
