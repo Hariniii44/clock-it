@@ -221,39 +221,62 @@ class EvidenceWeighter:
           - Unverified social     → 0.55 (below generic news baseline)
         """
         # Dataset sources — keys match Qdrant collection names.
-        # Tiers based on FactCheck.lk's source hierarchy (Mahoshadi interview):
-        #   3.0 = primary verification (DCS data, Central Bank reports)
-        #   2.8 = official financial/policy announcements
-        #   2.7 = legal judgments
-        #   2.5 = official administrative/legislative records
-        #   2.0 = context-only (Hansard per Mahoshadi), statistics reports
+        #
+        # Three-tier rationale (interview + Sri Lanka constitutional structure):
+        #
+        #   3.0 — Statutory primary authorities: institutions whose legal mandate
+        #          assigns them sole responsibility for producing authoritative data
+        #          in their domain (CBSL Act No.30/1950; Art.118 Constitution).
+        #          These sources *are* the fact — the CB figure is GDP, the SC ruling
+        #          is the legal answer.
+        #
+        #   2.7 — Enacted law & official fiscal announcements: authoritative by
+        #          statute but one step removed — they record or announce decisions
+        #          made through the primary institution.
+        #
+        #   2.5 — Official administrative records: government bodies that record
+        #          executive decisions (cabinet, presidency) or subordinate court
+        #          judgments. Authoritative but below primary statutory bodies.
+        #
+        #   2.3 — Administrative notifications: official but procedural/regulatory.
+        #
+        #   2.0 — Deliberative records & unenacted law: Hansard explicitly rated
+        #          context-only by FactCheck.lk (Mahoshadi interview) because MPs
+        #          can assert unverified claims in debate. Bills carry no legal force.
+        #
+        #   1.8 — Sector statistics: authoritative within a narrow domain only.
+        #
+        #   1.5 — Operational press releases: official but low evidentiary weight.
+        #
+        #   1.3 — Educational/background material.
         if dataset_source:
             dataset_authority = {
-                # Economic / Financial — primary verification sources
-                'central_bank_reports':         3.0,
-                'treasury_press_releases':       2.8,
-                'fisheries_statistics':          2.5,
-                'tourism_reports':               2.5,
-                # Legal / Judicial
-                'supreme_court':                 2.7,
-                'appeal_court':                  2.5,
-                'acts':                          2.5,
-                'bills':                         2.3,
-                # Presidential / Cabinet
+                # Tier 1 — Statutory primary authorities
+                'central_bank_reports':          3.0,  # CBSL Act; canonical economic data
+                'supreme_court':                 3.0,  # Art.118 Constitution; final legal ruling
+                # Tier 2 — Enacted law & official fiscal announcements
+                'acts':                          2.7,  # Enacted statute — definitive for legal claims
+                'treasury_press_releases':       2.7,  # Official fiscal/budget announcements
+                # Tier 3 — Official administrative records
                 'cabinet_decisions':             2.5,
                 'pmd_press_releases':            2.5,
-                # Gazettes / Admin
+                'appeal_court':                  2.5,
+                # Tier 4 — Administrative notifications
                 'extraordinary_gazettes_2020s':  2.3,
                 'extraordinary_gazettes_2010s':  2.3,
-                # Parliamentary — context only per Mahoshadi
+                # Tier 5 — Deliberative records & unenacted law (context only)
                 'hansard_2020s':                 2.0,
                 'hansard_2010s':                 2.0,
                 'hansard_2000s':                 2.0,
                 'hansard':                       2.0,
-                # Other
-                'police_press_releases':         2.0,
-                'education_publications':        1.8,
-                'news':                          1.5,
+                'bills':                         2.0,  # Proposed law — no legal force yet
+                # Tier 6 — Sector statistics
+                'fisheries_statistics':          1.8,
+                'tourism_reports':               1.8,
+                # Tier 7 — Operational press releases
+                'police_press_releases':         1.5,
+                # Tier 8 — Educational / background
+                'education_publications':        1.3,
             }
             return dataset_authority.get(dataset_source, 2.0)
 
@@ -466,6 +489,12 @@ class EvidenceWeighter:
 
         for i, (evidence, verification, bias) in enumerate(
                 zip(evidence_list, verification_results, bias_analyses)):
+            # IRRELEVANT sources are off-topic — exclude entirely from weighting
+            # so they don't dilute the active evidence pool.
+            if verification.get("label") == "IRRELEVANT":
+                print(f"  [Weighter] Source {i + 1} marked IRRELEVANT — excluded from verdict")
+                continue
+
             evidence_url = evidence.get("link", "")
 
             # Use pre-computed claim-relative alignment when available,
@@ -624,14 +653,15 @@ class EvidenceWeighter:
 class VerdictGenerator:
     def __init__(self):
         """Enhanced verdict generation with bias-aware confidence scoring"""
-        pass
+        # Shared weighter instance — avoids re-loading bias_profiles.json on
+        # every call to _is_factual_claim, _detect_newly_developing, and generate_verdict.
+        self._weighter = EvidenceWeighter()
     
     def _is_factual_claim(self, weighted_evidence: List[Dict]) -> bool:
         """
         Detect if this is a factual claim that shouldn't be marked as conflicting
         """
-        # Create EvidenceWeighter instance to access authority weight method
-        weighter = EvidenceWeighter()
+        weighter = self._weighter
         
         # Check for high-authority sources
         authority_weights = []
@@ -668,7 +698,7 @@ class VerdictGenerator:
         now = datetime.now()
         cutoff = now - timedelta(days=NEWLY_DEVELOPING_DAYS)
 
-        weighter = EvidenceWeighter()
+        weighter = self._weighter
         has_official_source = False
         has_database_source = False
         dated_sources = 0
@@ -754,13 +784,15 @@ class VerdictGenerator:
         for item in weighted_evidence:
             label = item["verification"]["label"]
             weight = item["weight"]
-            
+
             if label == "SUPPORTED":
                 support_score += weight
             elif label == "REFUTED":
                 refute_score += weight
-            else:
+            elif label == "NEUTRAL":
                 neutral_score += weight
+            # IRRELEVANT sources are filtered before reaching here (weight_all_evidence)
+            # but guard defensively in case of direct calls
         
         total = support_score + refute_score + neutral_score
 
@@ -777,7 +809,7 @@ class VerdictGenerator:
         # weight is only used to raise aleatoric uncertainty.
         active_total = support_score + refute_score
         active_count = sum(1 for item in weighted_evidence
-                           if item["verification"]["label"] != "NEUTRAL")
+                           if item["verification"]["label"] not in ("NEUTRAL", "IRRELEVANT"))
         # Require at least 2 active (non-neutral) sources before trusting the
         # active balance. A single weak source should not drive the verdict.
         if active_total > 0 and active_count >= 2:
@@ -794,7 +826,7 @@ class VerdictGenerator:
         neutral_pct = neutral_score / total
         
         # Calculate source diversity boost
-        weighter = EvidenceWeighter()
+        weighter = self._weighter
         diversity_score = weighter.get_source_diversity_score([item["evidence"] for item in weighted_evidence])
 
         # Enhanced diversity boost for Sri Lankan sources
@@ -943,17 +975,20 @@ class VerdictGenerator:
         
         # Aleatoric uncertainty: lack of directly relevant evidence.
         # Count sources that actually addressed the claim (SUPPORTED or REFUTED).
+        # IRRELEVANT sources are already excluded from weighted_evidence, but guard anyway.
         active_sources = sum(1 for item in weighted_evidence
-                             if item["verification"]["label"] != "NEUTRAL")
+                             if item["verification"]["label"] not in ("NEUTRAL", "IRRELEVANT"))
         ideal_sources = 5
         aleatoric = max(0.0, (ideal_sources - active_sources) / ideal_sources)
-        
+
         # Enhanced bias-induced uncertainty
         high_bias_count = sum(1 for a in alignments if a > 0.5)
         high_bias_ratio = high_bias_count / len(alignments) if alignments else 0.0
-        label_diversity = len(set(labels)) / 3 if labels else 1.0  # 3 possible labels
+        # Only count SUPPORTED/REFUTED/NEUTRAL in label diversity — 3 possible verdict labels
+        verdict_labels = [l for l in labels if l != "IRRELEVANT"]
+        label_diversity = len(set(verdict_labels)) / 3 if verdict_labels else 1.0
         bias_induced = high_bias_ratio * label_diversity
-        
+
         return {
             "epistemic": round(epistemic, 3),
             "aleatoric": round(aleatoric, 3),
@@ -976,136 +1011,4 @@ class VerdictGenerator:
             return "Uncertainty is low across all factors"
         
         return "; ".join(explanations)
-    
 
-
-
-
-
-
-
-    def weight_all_evidence(self, claim: str, evidence_list: List[Dict], verification_results: List[Dict], bias_analyses: List[Dict]) -> List[Dict]:
-        """
-        Enhanced weighting with cross-source framing analysis
-        """
-        # Perform cross-source framing analysis first
-        bias_detector = BiasDetector()
-        cross_source_analysis = bias_detector.analyze_cross_source_framing(claim, evidence_list, bias_analyses)
-        
-        weighted_evidence = []
-        
-        for i, (evidence, verification, bias) in enumerate(zip(evidence_list, verification_results, bias_analyses)):
-            evidence_url = evidence.get("link", "")
-            source_id = f"source_{i}"
-            
-            # Enhanced bias analysis including cross-source context
-            enhanced_bias = {
-                **bias,  # Original individual analysis
-                'cross_source_analysis': cross_source_analysis,
-                'is_emotional_outlier': self._check_emotional_outlier(source_id, cross_source_analysis),
-                'relative_emotional_intensity': self._get_relative_intensity(source_id, cross_source_analysis)
-            }
-            
-            # Calculate alignment with cross-source context
-            alignment = self.calculate_enhanced_bias_alignment(claim, enhanced_bias, evidence_url)
-            
-            # Calculate weight with cross-source penalties
-            weight = self.calculate_evidence_weight(
-                verification_confidence=verification["confidence"],
-                bias_alignment=alignment,
-                evidence_url=evidence_url,
-                evidence=evidence
-            )
-            
-            # Apply cross-source penalties
-            if enhanced_bias['is_emotional_outlier']:
-                weight *= 0.8  # 20% penalty for emotional outliers
-                print(f"  Cross-source penalty applied to source {i+1}: emotional outlier")
-            
-            explanation = self._generate_enhanced_explanation(alignment, weight, enhanced_bias, evidence_url)
-
-            weighted_evidence.append({
-                "evidence": evidence,
-                "verification": verification,
-                "bias_analysis": enhanced_bias,
-                "bias_alignment": alignment,
-                "weight": weight,
-                "explanation": explanation
-            })
-
-        return weighted_evidence
-
-    def calculate_enhanced_bias_alignment(self, claim: str, enhanced_bias: Dict, evidence_url: str = None) -> float:
-        """Enhanced alignment calculation including cross-source context"""
-        # Get base alignment
-        base_alignment = self.calculate_bias_claim_alignment(claim, enhanced_bias, evidence_url)
-        
-        # Adjust based on cross-source analysis
-        cross_source = enhanced_bias.get('cross_source_analysis', {})
-        
-        # Penalty for being an emotional outlier
-        if enhanced_bias.get('is_emotional_outlier', False):
-            outlier_penalty = 0.2
-            base_alignment = min(base_alignment + outlier_penalty, 1.0)
-        
-        # Penalty if source uses systematically different framing
-        relative_intensity = enhanced_bias.get('relative_emotional_intensity', 0.0)
-        if relative_intensity > 1.5:  # Much higher than average
-            intensity_penalty = 0.15
-            base_alignment = min(base_alignment + intensity_penalty, 1.0)
-        
-        return base_alignment
-
-    def _check_emotional_outlier(self, source_id: str, cross_source_analysis: Dict) -> bool:
-        """Check if source is flagged as emotional outlier"""
-        outliers = cross_source_analysis.get('emotional_outliers', [])
-        return any(outlier['source_id'] == source_id for outlier in outliers)
-
-    def _get_relative_intensity(self, source_id: str, cross_source_analysis: Dict) -> float:
-        """Get source's emotional intensity relative to baseline"""
-        baseline = cross_source_analysis.get('emotional_baseline', 0.0)
-        outliers = cross_source_analysis.get('emotional_outliers', [])
-        
-        for outlier in outliers:
-            if outlier['source_id'] == source_id:
-                return outlier['score'] / baseline if baseline > 0 else 1.0
-        
-        return 1.0  # Average intensity if not an outlier
-
-    def _generate_enhanced_explanation(self, alignment: float, weight: float, enhanced_bias: Dict, evidence_url: str = None) -> str:
-        """Enhanced explanation with detailed bias reasoning"""
-        base_explanation = self._generate_weight_explanation(alignment, weight, {}, evidence_url)
-        
-        # Add detailed cross-source bias explanation
-        cross_source_notes = []
-        
-        # Check if this source has detailed outlier analysis
-        cross_source = enhanced_bias.get('cross_source_analysis', {})
-        detailed_outliers = cross_source.get('detailed_outlier_analysis', {})
-        
-        # Find this source in the outlier analysis
-        source_analysis = None
-        for source_id, analysis in detailed_outliers.items():
-            if enhanced_bias.get('is_emotional_outlier', False):
-                source_analysis = analysis
-                break
-        
-        if source_analysis:
-            bias_explanation = source_analysis.get('bias_explanation', '')
-            if bias_explanation:
-                cross_source_notes.append(f"Emotional bias detected: {bias_explanation}")
-            
-            manipulation_score = source_analysis.get('manipulation_analysis', {}).get('manipulation_score', 0)
-            if manipulation_score > 0.5:
-                cross_source_notes.append(f"High manipulation score ({manipulation_score:.2f}/1.0)")
-        
-        relative_intensity = enhanced_bias.get('relative_emotional_intensity', 1.0)
-        if relative_intensity > 1.3:
-            cross_source_notes.append(f"Uses {relative_intensity:.1f}x more emotional language than other sources")
-        elif relative_intensity < 0.7:
-            cross_source_notes.append(f"Uses {relative_intensity:.1f}x less emotional language than other sources")
-        
-        if cross_source_notes:
-            return f"{base_explanation} Bias analysis: {' '.join(cross_source_notes)}"
-        
-        return base_explanation
