@@ -3,7 +3,8 @@ data/
 
 # Qdrant vector database storage (regeneratable, do not commit)
 qdrant_storage/
-
+evaluation/
+scripts/
 
 # Python cache
 __pycache__/
