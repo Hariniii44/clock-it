@@ -68,9 +68,7 @@ async def lifespan(app: FastAPI):
     from src.evidence_retrieval.tavily_evidence_retrieval import TavilyEvidenceRetriever
     from src.evidence_retrieval.google_ai_mode_retrieval import GoogleAIModeRetriever
     from src.retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever as HybridRetriever
-    from src.verification import ClaimVerifier
     from src.verification.gemini_nli_verification import GeminiNLIVerifier
-    from src.bias_detection import BiasDetector
     from src.bias_detection.claim_bias_analyzer import ClaimBiasAnalyzer
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
 
@@ -94,11 +92,7 @@ async def lifespan(app: FastAPI):
 
     _models["groq_verifier"] = GeminiNLIVerifier()
     print("  GeminiNLIVerifier ready")
-    _models["verifier"] = ClaimVerifier()
-    print("  ClaimVerifier (DeBERTa) ready")
 
-    _models["bias_detector"] = BiasDetector()
-    print("  BiasDetector ready")
 
     _models["claim_bias_analyzer"] = ClaimBiasAnalyzer(gemini_api_key=Config.GEMINI_API_KEY)
     print("  ClaimBiasAnalyzer (Gemini 2.5 Pro) ready")
@@ -423,27 +417,18 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
         def _nli():
             return m["groq_verifier"].verify_batch(claim, all_evidence)
 
-        def _bias_det():
-            results = []
-            for ev in all_evidence:
-                try:
-                    results.append(
-                        m["bias_detector"].analyze_source(ev.get("snippet", ""), ev.get("link", ""))
-                    )
-                except Exception:
-                    results.append({"overall_bias": 0.0, "confidence": 0.0})
-            return results
-
         def _claim_bias():
             return m["claim_bias_analyzer"].analyze(claim, all_evidence)
 
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            nli_f       = pool.submit(_nli)
-            bias_det_f  = pool.submit(_bias_det)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            nli_f        = pool.submit(_nli)
             claim_bias_f = pool.submit(_claim_bias)
-            return nli_f.result(), bias_det_f.result(), claim_bias_f.result()
+            return nli_f.result(), claim_bias_f.result()
 
-    groq_batch, bias_analyses, bias_result = await loop.run_in_executor(None, _analysis)
+    groq_batch, bias_result = await loop.run_in_executor(None, _analysis)
+    # bias_analyses is a placeholder — alignment and framing come entirely from
+    # ClaimBiasAnalyzer (Gemini) via precomputed_alignments / framing_result.
+    bias_analyses = [{"overall_bias": 0.0, "confidence": 0.0}] * len(all_evidence)
 
     # ------------------------------------------------------------------
     # STAGE 2 RELEVANCE FILTER: Groq relevance flag
@@ -464,28 +449,31 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
             )
         }
         if irrelevant_indices:
-            print(f"  [GroqRelevance] Dropping {len(irrelevant_indices)} DB source(s) flagged irrelevant by Groq:")
+            print(f"  [NLIFilter] Dropping {len(irrelevant_indices)} source(s) flagged IRRELEVANT by Gemini NLI:")
             for i in sorted(irrelevant_indices):
-                print(f"    - {all_evidence[i].get('source', '')[:60]}")
+                print(f"    - {all_evidence[i].get('source', '') or all_evidence[i].get('link', '')[:60]}")
             keep            = [i for i in range(len(all_evidence)) if i not in irrelevant_indices]
-            all_evidence    = [all_evidence[i]    for i in keep]
-            groq_batch      = [groq_batch[i]      for i in keep]
-            bias_analyses   = [bias_analyses[i]   for i in keep]
+            all_evidence    = [all_evidence[i] for i in keep]
+            groq_batch      = [groq_batch[i]   for i in keep]
+            bias_analyses   = [{"overall_bias": 0.0, "confidence": 0.0}] * len(keep)
             if bias_result and 'sources' in bias_result:
                 bias_result['sources'] = [bias_result['sources'][i] for i in keep]
 
-    use_groq = len(groq_batch) == len(all_evidence)
+    if not groq_batch:
+        yield {"type": "error", "message": "NLI verification failed — all Gemini models unavailable. Please try again later."}
+        return
+
     verification_results = []
     for i, ev in enumerate(all_evidence):
         try:
-            vr = groq_batch[i] if use_groq else m["verifier"].verify_claim(claim, ev.get("snippet", ""))
+            vr = groq_batch[i]
             if not isinstance(vr, dict) or "label" not in vr or "confidence" not in vr:
-                verification_results.append({"label": "error", "confidence": 0.0})
+                verification_results.append({"label": "NEUTRAL", "confidence": 0.5, "reason": "Parse error"})
             else:
                 verification_results.append(vr)
         except Exception as e:
             print(f"  NLI source {i} error: {e}")
-            verification_results.append({"label": "error", "confidence": 0.0})
+            verification_results.append({"label": "NEUTRAL", "confidence": 0.5, "reason": "Parse error"})
 
     # ------------------------------------------------------------------
     # STEP 4: Bias-aware weighting + verdict (fast, no I/O)
