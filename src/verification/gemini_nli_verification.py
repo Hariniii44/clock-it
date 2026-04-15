@@ -15,7 +15,7 @@ Fixes applied over the original Groq verifier:
   6. Confidence scores are never overridden with hardcoded values
   7. Proper text sanitization (no wholesale backslash removal)
   8. Context-budget-aware snippet limits
-  9. Irrelevant source flag correctly populated (filtering happens in api.py)
+  9. IRRELEVANT is a first-class label — relevant flag derived from it, not a separate model output
 """
 
 import json
@@ -40,22 +40,42 @@ except ImportError:
 
 SYSTEM_PROMPT = """You are a fact-checking assistant specialising in Sri Lankan political, economic, and social claims.
 
-Classify each numbered evidence source as SUPPORTED, REFUTED, or NEUTRAL relative to the given claim.
+Classify each numbered evidence source using EXACTLY ONE of four labels relative to the given claim.
 
 DEFINITIONS:
-  SUPPORTED  — The source contains verified factual evidence the claim is TRUE.
-               Qualifies: court ruling, official government investigation, authoritative statistics,
-               OR an established fact-checker (AFP Fact Check, BBC Verify, Reuters Fact Check,
-               FactCrescendo, Newschecker, Alt News) explicitly confirming the claim.
+  SUPPORTED   — The source contains verified factual evidence the claim is TRUE.
+                Qualifies: court ruling, official government investigation, authoritative statistics,
+                OR an established fact-checker (AFP Fact Check, BBC Verify, Reuters Fact Check,
+                FactCrescendo, Newschecker, Alt News) explicitly confirming the claim.
 
-  REFUTED    — The source contains verified factual evidence the claim is FALSE.
-               Qualifies: court ruling or official report directly contradicting the claim,
-               established fact-checker explicitly labelling it false/debunked,
-               OR a confirmed alternative cause that contradicts a causal claim
-               (e.g. "died of natural causes" refutes "was killed by").
+  REFUTED     — The source contains verified factual evidence the claim is FALSE.
+                Qualifies: court ruling or official report directly contradicting the claim,
+                established fact-checker explicitly labelling it false/debunked,
+                OR a confirmed alternative cause that contradicts a causal claim
+                (e.g. "died of natural causes" refutes "was killed by").
 
-  NEUTRAL    — Everything else: accusations, allegations, opinions, unverified reports,
-               truncated snippets, or sources covering a different time period.
+  NEUTRAL     — The source addresses the claim's specific question but stops short of
+                confirming or denying it. Use NEUTRAL when the source directly engages
+                with what the claim asks but gives an inconclusive answer:
+                accusations, allegations, opinions, or the underlying event is confirmed
+                but a key qualifier (e.g. "first ever") is not addressed.
+                Do NOT use NEUTRAL as a default when the source simply does not mention
+                what the claim asks about.
+
+  IRRELEVANT  — The source is about a DIFFERENT question than the claim, even if it shares
+                the same general domain or subject matter.
+
+                Use IRRELEVANT when the source answers a different question, for example:
+                • Claim asks about enforcement/legal action → source explains how permits
+                  are issued or the regulatory framework (different question)
+                • Claim asks about Event A → source covers related Event B in the same field
+                • Source is background/context that has no bearing on whether the claim
+                  is true or false
+
+                The decision test — ask yourself:
+                  "Could reading the full source help confirm or refute this specific claim?"
+                  YES, even partially → NEUTRAL
+                  NO, it answers a different question entirely → IRRELEVANT
 
 RULES — apply in this exact order:
 
@@ -78,22 +98,23 @@ RULES — apply in this exact order:
    (e.g. "X was never appointed" or "the appointment was cancelled").
 
 4. TIME PERIODS.
-   If a source covers a genuinely different time period and provides no relevant context
-   for the claim → NEUTRAL. But mark relevant=true if the source still gives useful background.
-
-RELEVANCE FLAG:
-  relevant=false  ONLY if the source is about completely unrelated entities or topics
-                  (e.g. claim is about fuel prices, source is about a cricket match abroad).
-                  A source covering the same person/topic but a different timeframe is still
-                  relevant=true.
+   A source from a different time period is NEUTRAL if it still addresses the claim's
+   specific question (e.g. confirms the same type of action occurred, even if not at
+   the exact time the claim implies). It is IRRELEVANT if it only covers background
+   context that does not bear on whether the claim is true or false.
 
 OTHER:
   "Rs." = Sri Lankan Rupees. Use today's date (provided in the user message) for temporal reasoning.
 
+REASON FIELD RULES:
+  - Write the reason for the source whose index you are currently outputting.
+  - Begin the reason with a short direct quote (3-8 words) from THAT source's text, then explain its relevance.
+  - Do NOT reference other sources by index number (e.g. do not write "Source [2]").
+  - One sentence total.
+
 Return ONLY a valid JSON array — no markdown, no text outside the array.
-Format: [{"index": <int>, "label": "SUPPORTED"|"REFUTED"|"NEUTRAL",
-           "confidence": <float 0.0-1.0>, "reason": "<one sentence>",
-           "relevant": <true|false>}, ...]"""
+Format: [{"index": <int>, "label": "SUPPORTED"|"REFUTED"|"NEUTRAL"|"IRRELEVANT",
+           "confidence": <float 0.0-1.0>, "reason": "<one sentence>"}, ...]"""
 
 
 # ---------------------------------------------------------------------------
@@ -113,11 +134,8 @@ class GeminiNLIVerifier:
 
     DEFAULT_MODELS = [
         "models/gemini-2.5-flash",
-        "models/gemini-3-flash",
-        # "models/gemini-2.0-flash",
-        # "models/gemini-flash-latest",
-        "models/gemini-3.1-flash-lite",
-        "models/gemini-3.1-flash-lite"
+        "models/gemini-2.5-flash-lite",
+        "models/gemini-3-flash-preview",
     ]
 
     def __init__(
@@ -345,7 +363,7 @@ class GeminiNLIVerifier:
                 continue
 
             label = str(item.get("label", "NEUTRAL")).upper()
-            if label not in ("SUPPORTED", "REFUTED", "NEUTRAL"):
+            if label not in ("SUPPORTED", "REFUTED", "NEUTRAL", "IRRELEVANT"):
                 label = "NEUTRAL"
 
             try:
@@ -358,7 +376,7 @@ class GeminiNLIVerifier:
                 "label":      label,
                 "confidence": confidence,
                 "reason":     str(item.get("reason", "")),
-                "relevant":   bool(item.get("relevant", True)),
+                "relevant":   label != "IRRELEVANT",  # derived — no longer a model output
             }
 
         # Reconstruct list in original source order; missing entries → NEUTRAL
