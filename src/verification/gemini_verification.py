@@ -861,22 +861,37 @@ RECOMMENDATIONS:
             weight = item['weight']
             bias_alignment = item['bias_alignment']
             verification = item['verification']
-            
+            framing = item.get('framing_entry', {})
+
             source_name = evidence.get('source', 'Unknown Source')
             source_type = evidence.get('evidence_type', 'unknown')
             verdict = verification.get('label', 'unknown')
             confidence = verification.get('confidence', 0)
-            
+            nli_reason = verification.get('reason', '')
+
             actual_content = evidence.get('content', evidence.get('snippet', ''))
             content_preview = actual_content[:400].strip() if actual_content else '[no content retrieved]'
 
+            # The exact formula breakdown — already computed deterministically
+            weight_breakdown = item.get('explanation', '')
+
+            # Framing signals from ClaimBiasAnalyzer
+            loaded_phrases = framing.get('loaded_phrases', [])
+            framing_type = framing.get('framing_type', '')
+            political_dir = framing.get('political_direction', '')
+            framing_line = (
+                f"  - Framing: {framing_type}, political direction: {political_dir}"
+                + (f", loaded phrases: {', '.join(repr(p) for p in loaded_phrases[:3])}" if loaded_phrases else "")
+            ) if framing_type else ""
+
             evidence_summary.append(f"""
-Source {i}: {source_name}
-  - Type: {source_type} source
-  - Verdict: {verdict} ({confidence:.1%} confidence)
-  - Final Weight: {weight:.3f}
-  - Bias Alignment: {bias_alignment:.3f}
+Source {i}: {source_name} ({source_type})
   - Actual content: "{content_preview}"
+  - NLI verdict: {verdict} ({confidence:.1%} confidence)
+  - NLI reason: {nli_reason}
+  - Bias alignment: {bias_alignment:.3f}{chr(10) + framing_line if framing_line else ""}
+  - Weight formula (exact, do not recalculate):
+{chr(10).join('    ' + line for line in weight_breakdown.splitlines()) if weight_breakdown else f'    Final weight = {weight:.3f}'}
 """)
         
         evidence_text = "\n".join(evidence_summary)
@@ -966,25 +981,21 @@ FINAL VERDICT:
 {temporal_warning}{claim_bias_section}
 
 ALGORITHM EXPLANATION TASK:
-Your job is to explain in simple terms WHY each source received its specific weight. For each key source, show:
+Explain in plain language WHY each source received its specific weight. Focus on 3-4 most influential sources.
 
-1. **What the source actually said** (quote directly from the "Actual content" field above — do NOT infer or fabricate quotes)
-2. **How NLI interpreted it** (what verdict + confidence it gave)
-3. **Bias-claim alignment calculation** (why the bias score was high/low)
-4. **Final weight explanation** (how all factors combined)
+STRICT RULES:
+1. The "Weight formula (exact)" field for each source contains the precise breakdown computed by the algorithm. USE THESE NUMBERS — do not recalculate, estimate, or guess weight components.
+2. Quote directly from the "Actual content" field. Do NOT fabricate or infer quotes.
+3. Use the "NLI reason" as the ground truth for why a source was labelled SUPPORTED/NEUTRAL/etc.
+4. If a source has loaded phrases listed, mention them specifically when explaining bias alignment.
 
-Focus on 3-4 most influential sources as examples. Show the actual content that drove the algorithm's decisions.
+For each source explain:
+- What the source actually said (direct quote from content)
+- What the NLI concluded and why (use the NLI reason field verbatim or paraphrase closely)
+- What the weight formula components mean in plain English (base credibility, authority multiplier, recency, bias penalty — these are already given to you, just explain what they mean for this source)
+- The final weight and what it means relative to other sources
 
-EXAMPLE FORMAT FOR EACH SOURCE:
-"Source X (government website) said: 'The Standing Orders clearly state that the Speaker has authority to remove DSGs without parliamentary approval.'
-
-NLI Analysis: This directly contradicts the claim (confidence: 95%) because it states the Speaker DOES have authority.
-
-Bias Alignment: As a government source, this statement goes against typical government bias (alignment: 0.15), so it gets higher weight.
-
-Final Weight: 1.05 (high authority × high confidence × low bias penalty)"
-
-Keep it educational and show how the research algorithm works step-by-step. Use real examples from the sources above.
+Keep it concise — 3-5 sentences per source. Do not pad with generic statements about how fact-checking works.
 {f'''
 IMPORTANT — CLAIM BIAS EXPLANATION:
 After explaining the source weights, add a dedicated section titled "## Bias in the Claim Itself" that explains to the reader:
