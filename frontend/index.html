@@ -1378,6 +1378,8 @@
        JAVASCRIPT
        ===================================================================== -->
   <script>
+    const API_BASE = 'http://localhost:8000';
+
     // -----------------------------------------------------------------------
     // Loading message — driven by real SSE status events
     // -----------------------------------------------------------------------
@@ -1424,7 +1426,7 @@
       document.getElementById('temporal-banner').style.display = 'none';
 
       try {
-        const res = await fetch('http://localhost:8000/verify/stream', {
+        const res = await fetch(`${API_BASE}/verify/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ claim, skip_gemini: true }),
@@ -1940,7 +1942,7 @@
       let fullText = '';
 
       try {
-        const res = await fetch('http://localhost:8000/explain/stream', {
+        const res = await fetch(`${API_BASE}/explain/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ claim: _lastClaim }),
@@ -2004,7 +2006,7 @@
       let fullText = '';
 
       try {
-        const res = await fetch('http://localhost:8000/explain/bias', {
+        const res = await fetch(`${API_BASE}/explain/bias`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ claim: _lastClaim }),
@@ -2149,15 +2151,15 @@
 
     // 6-label verdict system helpers (5 on scale + UNCERTAIN off-scale)
     const _VERDICT_META = {
-      VERIFIED:       { label: 'True',           sub: 'Verified',               color: '#4caf50', step: 4 },
-      MOSTLY_TRUE:    { label: 'Mostly True',     sub: 'Largely Supported',      color: '#8bc34a', step: 3 },
-      PARTIALLY_TRUE: { label: 'Partially True',  sub: 'Mixed Evidence',         color: '#ff9800', step: 2 },
-      MOSTLY_FALSE:   { label: 'Mostly False',    sub: 'Largely Contradicted',   color: '#ff5722', step: 1 },
-      REFUTED:        { label: 'False',           sub: 'Refuted',                color: '#f44336', step: 0 },
-      UNCERTAIN:      { label: 'Unverified',      sub: 'Insufficient Evidence',  color: '#888888', step: -1 },
+      VERIFIED:       { label: 'Verified',       sub: 'Supported by Evidence',    color: '#4caf50', step: 4 },
+      MOSTLY_TRUE:    { label: 'Mostly True',     sub: 'Largely Supported',        color: '#8bc34a', step: 3 },
+      PARTIALLY_TRUE: { label: 'Partially True',  sub: 'Mixed Evidence',           color: '#ff9800', step: 2 },
+      MOSTLY_FALSE:   { label: 'Mostly False',    sub: 'Largely Contradicted',     color: '#ff5722', step: 1 },
+      REFUTED:        { label: 'Refuted',         sub: 'Contradicted by Evidence', color: '#f44336', step: 0 },
+      UNCERTAIN:      { label: 'Uncertain',       sub: 'Insufficient Evidence',    color: '#888888', step: -1 },
       // legacy — kept so old cached results still render
-      SUPPORTED:      { label: 'True',            sub: 'Verified',               color: '#4caf50', step: 4 },
-      CONFLICTING:    { label: 'Partially True',  sub: 'Mixed Evidence',         color: '#ff9800', step: 2 },
+      SUPPORTED:      { label: 'Verified',        sub: 'Supported by Evidence',    color: '#4caf50', step: 4 },
+      CONFLICTING:    { label: 'Partially True',  sub: 'Mixed Evidence',           color: '#ff9800', step: 2 },
     };
 
     function verdictClass(verdict) {
