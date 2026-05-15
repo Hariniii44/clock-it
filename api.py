@@ -129,6 +129,82 @@ async def lifespan(app: FastAPI):
 
 
 # ---------------------------------------------------------------------------
+# Verdict reason helper — plain-English summary of why the verdict was reached
+# ---------------------------------------------------------------------------
+def _compute_verdict_reason(verdict: str, weighted_evidence: list, uncertainty: dict, newly_developing: dict) -> str:
+    from collections import Counter
+    label_counts = Counter(
+        item["verification"]["label"]
+        for item in weighted_evidence
+        if item["verification"]["label"] != "IRRELEVANT"
+    )
+    supported = label_counts.get("SUPPORTED", 0)
+    refuted   = label_counts.get("REFUTED", 0)
+    neutral   = label_counts.get("NEUTRAL", 0)
+    active    = supported + refuted
+    total     = supported + refuted + neutral
+    aleatoric = uncertainty.get("aleatoric", 0.0)
+    no_official = (
+        not newly_developing.get("has_official_source", True) and
+        not newly_developing.get("has_database_source", True)
+    )
+
+    base = verdict.replace("(PRELIMINARY)", "").strip()
+
+    if base == "UNCERTAIN":
+        if total == 0:
+            return "No relevant sources were found for this claim, making it impossible to reach a verdict."
+        if active == 0:
+            src = "source" if total == 1 else "sources"
+            if total == 1:
+                return (
+                    "The only source found reports an allegation or opinion rather than a confirmed fact, "
+                    "so the claim could neither be supported nor refuted."
+                )
+            return (
+                f"All {total} {src} found report allegations or opinions rather than confirmed facts — "
+                "none directly confirm or deny the claim, so no verdict could be reached."
+            )
+        if supported > 0 and refuted > 0:
+            return (
+                f"The evidence is split — {supported} source{'s' if supported > 1 else ''} appear to "
+                f"support the claim while {refuted} contradict it, making a clear verdict impossible."
+            )
+        if aleatoric >= 0.6:
+            src = f"{total} relevant source{'s were' if total > 1 else ' was'}"
+            return f"Too few sources were found to reach a reliable verdict — only {src} evaluated."
+        return "The available evidence was insufficient or too unclear to confirm or deny this claim."
+
+    if base in ("SUPPORTED", "VERIFIED"):
+        if supported == 1:
+            return "One source directly supports this claim with verified information."
+        return f"{supported} sources support this claim, with the evidence pointing towards it being accurate."
+
+    if base == "REFUTED":
+        if refuted == 1:
+            return "One source directly contradicts this claim with evidence showing it to be inaccurate."
+        return f"{refuted} sources contradict this claim, with the evidence pointing against it."
+
+    if base == "MOSTLY_TRUE":
+        return (
+            f"The evidence largely supports this claim — {supported} source{'s' if supported > 1 else ''} "
+            "back it up, though some uncertainty remains."
+        )
+    if base == "MOSTLY_FALSE":
+        return (
+            f"The evidence largely contradicts this claim — {refuted} source{'s' if refuted > 1 else ''} "
+            "point against it, though the picture is not entirely clear."
+        )
+    if base == "PARTIALLY_TRUE":
+        return (
+            f"The evidence is mixed — {supported} source{'s' if supported > 1 else ''} support the claim "
+            f"while {refuted} contradict it, suggesting it is only partially accurate."
+        )
+
+    return "The available evidence was insufficient to reach a clear verdict."
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
@@ -514,6 +590,12 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
         disable_bias=disable_bias,
     )
     base_verdict = m["verdict_generator"].generate_verdict(weighted_evidence)
+
+    nd = base_verdict.get("newly_developing", {})
+    if nd.get("is_newly_developing") and nd.get("warning"):
+        temporal_confidence["temporal_warnings"].append(nd["warning"])
+        temporal_confidence["is_breaking_news"] = True
+
     temporal_adjusted_confidence = (
         base_verdict["confidence"] * temporal_confidence["temporal_confidence_multiplier"]
     )
@@ -643,6 +725,11 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
             "content_freshness_score": content_freshness["freshness_score"],
             "breaking_indicators": content_freshness.get("breaking_indicators", []),
             "temporal_warnings": temporal_confidence["temporal_warnings"],
+            "newly_developing": base_verdict.get("newly_developing", {}),
+            "verdict_reason": _compute_verdict_reason(
+                verdict_label, weighted_evidence, uncertainty,
+                base_verdict.get("newly_developing", {}),
+            ),
         },
         "bias_context": {
             "claim_bias": result_data["claim_bias"],

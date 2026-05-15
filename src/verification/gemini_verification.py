@@ -896,6 +896,8 @@ Source {i}: {source_name} ({source_type})
         
         evidence_text = "\n".join(evidence_summary)
         
+        verdict_reason = (temporal_context or {}).get('verdict_reason', '')
+
         # Build temporal warning section
         temporal_warning = ""
         if temporal_context:
@@ -903,23 +905,37 @@ Source {i}: {source_name} ({source_type})
             recency_level = temporal_context.get('recency_level', 'historical')
             hours_old = temporal_context.get('estimated_hours_old', 0)
             freshness_score = temporal_context.get('content_freshness_score', 0)
-            
+
+            nd = temporal_context.get('newly_developing', {})
+            is_newly_developing = nd.get('is_newly_developing', False)
+            has_official = nd.get('has_official_source', True)
+            has_database = nd.get('has_database_source', True)
+            recent_ratio = nd.get('recent_source_ratio')
+
             if is_breaking or recency_level in ['immediate', 'recent'] or freshness_score > 0.5:
+                nd_lines = ""
+                if is_newly_developing:
+                    nd_lines += "- ALL sources are recent web/social media — no official or government sources have reported on this yet\n"
+                    if recent_ratio is not None:
+                        nd_lines += f"- {int(recent_ratio * 100)}% of sources are from within the last 14 days\n"
+                    nd_lines += "- Official confirmations, parliamentary records, or government statements are absent\n"
+
                 temporal_warning = f"""
 
 CRITICAL TEMPORAL NOTE:
 - This is BREAKING/RECENT NEWS (estimated {hours_old} hours old)
-- Content freshness score: {freshness_score:.2f}/1.0  
+- Content freshness score: {freshness_score:.2f}/1.0
 - Recency level: {recency_level}
 - Sources are very fresh and preliminary
 - Story is likely still developing
 - Information may be incomplete or changing rapidly
-
+{nd_lines}
 YOU MUST EMPHASIZE IN YOUR EXPLANATION:
 1. This verdict is HIGHLY PRELIMINARY due to breaking news nature
 2. Users should be CAUTIOUS and expect updates
 3. Evidence is temporal and may evolve quickly
 4. Recommend checking back for updates as story develops
+{f"5. Specifically note that no official/government sources have yet weighed in on this — only media reports exist so far" if is_newly_developing else ""}
 """
         
         # Build claim bias section
@@ -964,8 +980,15 @@ YOU MUST EMPHASIZE IN YOUR EXPLANATION:
             if bias_lines:
                 claim_bias_section = "\n\nCLAIM-LEVEL BIAS ANALYSIS:\nThe fact-checking system also analysed the claim itself for bias:\n" + "\n".join(bias_lines) + "\n"
 
+        developing_note = ""
+        if is_newly_developing:
+            developing_note = (
+                " This is a developing story — all sources are recent media reports and no official "
+                "or government sources have yet commented on it, so the situation may change."
+            )
+
         prompt = f"""
-You are an expert in explaining automated fact-checking algorithms to users.
+You are an expert in explaining automated fact-checking results to a general audience.
 
 ORIGINAL CLAIM:
 "{claim}"
@@ -980,10 +1003,23 @@ FINAL VERDICT:
 - Refute: {final_verdict.get('refute_score', 0):.1%}
 {temporal_warning}{claim_bias_section}
 
-ALGORITHM EXPLANATION TASK:
-Explain in plain language WHY each source received its specific weight. Focus on 3-4 most influential sources.
+VERDICT SUMMARY (pre-computed — use this as the factual basis for your opening paragraph):
+{verdict_reason}{developing_note}
 
-STRICT RULES:
+EXPLANATION TASK:
+Your response must have two parts in this order:
+
+PART 1 — OPENING SUMMARY (write this first):
+Write 2-4 sentences that explain the verdict to a general reader who may not read anything else.
+- Base it on the VERDICT SUMMARY above — do not contradict it or introduce new facts
+- Explain what was (and wasn't) found, and why that led to this verdict
+- If this is a developing story, weave in the caveat naturally — mention source recency and the absence of official sources
+- Use plain, everyday language. BANNED WORDS: NLI, confidence score, aleatoric, epistemic, algorithm, weight formula, weight multiplier, base credibility
+
+PART 2 — SOURCE WEIGHT EXPLANATION:
+Add a heading "## Why Each Source Received Its Specific Weight" then explain each source.
+
+STRICT RULES for Part 2:
 1. The "Weight formula (exact)" field for each source contains the precise breakdown computed by the algorithm. USE THESE NUMBERS — do not recalculate, estimate, or guess weight components.
 2. Quote directly from the "Actual content" field. Do NOT fabricate or infer quotes.
 3. Use the "NLI reason" as the ground truth for why a source was labelled SUPPORTED/NEUTRAL/etc.
@@ -991,11 +1027,11 @@ STRICT RULES:
 
 For each source explain:
 - What the source actually said (direct quote from content)
-- What the NLI concluded and why (use the NLI reason field verbatim or paraphrase closely)
-- What the weight formula components mean in plain English (base credibility, authority multiplier, recency, bias penalty — these are already given to you, just explain what they mean for this source)
+- What the system concluded about it and why (paraphrase the NLI reason in plain language)
+- What the key factors were that raised or lowered its influence (source type, recency, detected bias)
 - The final weight and what it means relative to other sources
 
-Keep it concise — 3-5 sentences per source. Do not pad with generic statements about how fact-checking works.
+Keep it concise — 3-5 sentences per source.
 {f'''
 IMPORTANT — CLAIM BIAS EXPLANATION:
 After explaining the source weights, add a dedicated section titled "## Bias in the Claim Itself" that explains to the reader:
