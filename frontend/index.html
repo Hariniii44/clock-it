@@ -2264,7 +2264,7 @@
         _themeLabel.textContent = 'Light';
       }
     }
-    applyTheme(localStorage.getItem('theme') || 'dark');
+    applyTheme(localStorage.getItem('theme') || 'light');
     _themeToggleBtn.addEventListener('click', () => {
       const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
       localStorage.setItem('theme', next);
