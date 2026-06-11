@@ -15,8 +15,10 @@ datasets==2.16.1
 
 # API clients
 requests>=2.31.0
+google-search-results>=2.4.2
 groq>=0.4.0
 google-generativeai>=0.3.0  # Free Gemini API (no payment needed!)
+google-genai>=0.8.0
 
 # API server
 fastapi>=0.111.0
