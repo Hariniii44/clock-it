@@ -90,7 +90,7 @@ class BiasScorer:
                 # Remove the edge with maximum weight
                 if max_edge:
                     G_copy.remove_edge(max_edge[0], max_edge[1])
-                    print(f"   Removed edge: {max_edge[0]} → {max_edge[1]} (weight: {max_weight:.3f})")
+                    print(f"   Removed edge: {max_edge[0]} -> {max_edge[1]} (weight: {max_weight:.3f})")
                 
             except nx.NetworkXNoCycle:
                 # No more cycles found
@@ -111,7 +111,7 @@ class BiasScorer:
         try:
             # Topological sort to get ordering
             topo_order = list(nx.topological_sort(G))
-            print(f"   Topological order: {' → '.join(topo_order)}")
+            print(f"   Topological order: {' ->'.join(topo_order)}")
             
             # Initialize bias scores
             bias_scores = {}
@@ -209,11 +209,11 @@ class BiasScorer:
         
         return interpreted
     
-    def save_bias_profiles(self, interpreted_scores: Dict, filepath: str):
+    def save_bias_profiles(self, interpreted_scores: Dict, filepath: str,
+                           political_csv: str = "data/political_articles.csv"):
         """Save final bias profiles"""
-        # Load article counts for confidence calculation
         try:
-            df = pd.read_csv("data/political_articles.csv")
+            df = pd.read_csv(political_csv)
             article_counts = df['source'].value_counts().to_dict()
         except:
             article_counts = {}
@@ -245,7 +245,7 @@ class BiasScorer:
         sorted_sources = sorted(interpreted_scores.items(), 
                                key=lambda x: x[1]['bias_score'])
         
-        print(f"\nSource Bias Rankings (Opposition ← → Pro-Government):")
+        print(f"\nSource Bias Rankings (Opposition <- ->Pro-Government):")
         print(f"{'Rank':<4} {'Source':<20} {'Score':<8} {'Interpretation'}")
         print("-" * 60)
         

@@ -9,23 +9,23 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class BiasAnalyzer:
-    def __init__(self):
+    def __init__(self, politician_file: str = "data/sri_lankan_politicians.json"):
+        self._politician_file = politician_file
         print("Loading pre-trained ABSA model...")
-        # Using a pre-trained ABSA model instead of training our own
         self.absa_model = pipeline(
             "text-classification",
             model="yangheng/deberta-v3-base-absa-v1.1",
             device=-1  # Use CPU (set to 0 for GPU)
         )
         print("ABSA model loaded successfully")
-        
+
         # Load politician lists
         self.load_politicians()
-        
+
     def load_politicians(self):
         """Load politician lists and party affiliations"""
         try:
-            with open("data/sri_lankan_politicians.json", 'r', encoding='utf-8') as f:
+            with open(self._politician_file, 'r', encoding='utf-8') as f:
                 pol_data = json.load(f)
             
             self.politicians = pol_data['politicians']
