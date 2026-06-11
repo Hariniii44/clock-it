@@ -253,7 +253,8 @@ DATASETS_CONFIG = {
 # }
 
 # Qdrant settings
-QDRANT_URL = os.getenv('QDRANT_URL', 'http://localhost:6333')
+QDRANT_URL     = os.getenv('QDRANT_URL', 'http://localhost:6333')
+QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', None)
 
 # Embedding and retrieval settings
 EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'  # Fast, good quality
