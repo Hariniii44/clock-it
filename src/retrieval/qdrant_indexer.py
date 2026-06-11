@@ -8,9 +8,9 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_from_disk
 from tqdm import tqdm
 
-from config import DATASETS_DIR, DATASETS_CONFIG, EMBEDDING_MODEL, QDRANT_URL
+from config import DATASETS_DIR, DATASETS_CONFIG, EMBEDDING_MODEL, QDRANT_URL, QDRANT_API_KEY
 
-BATCH_SIZE = 256  # documents per upsert batch
+BATCH_SIZE = 64  # documents per upsert batch (smaller for cloud upload)
 
 
 def _extract_texts_and_metadata(data, dataset_name: str):
@@ -79,7 +79,7 @@ class QdrantIndexBuilder:
         self.dimension = self.model.get_sentence_embedding_dimension()
         print(f"Embedding dimension: {self.dimension}")
 
-        self.client = QdrantClient(url=qdrant_url)
+        self.client = QdrantClient(url=qdrant_url, api_key=QDRANT_API_KEY, timeout=120)
         print(f"Qdrant connected at {qdrant_url}")
 
     def build_collection(self, dataset_name: str, force_rebuild: bool = False) -> bool:

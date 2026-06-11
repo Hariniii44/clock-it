@@ -10,10 +10,10 @@ from sentence_transformers import SentenceTransformer
 from typing import List, Dict
 
 from config import (
-    QDRANT_URL, EMBEDDING_MODEL, DATASETS_CONFIG,
+    QDRANT_URL, QDRANT_API_KEY, EMBEDDING_MODEL, DATASETS_CONFIG,
     TOP_K_PER_DATASET, RELEVANCE_THRESHOLD,
     get_datasets_for_claim_type,
-    USE_HYBRID_RETRIEVAL,
+    USE_HYBRID_RETRIEVAL, HYBRID_FALLBACK_TO_SERPER,
 )
 
 
@@ -25,7 +25,7 @@ class QdrantHybridRetriever:
 
     def __init__(self):
         print(f"Connecting to Qdrant at {QDRANT_URL} ...")
-        self.client = QdrantClient(url=QDRANT_URL)
+        self.client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
         self.available_collections = {
             c.name for c in self.client.get_collections().collections
         }
