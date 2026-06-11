@@ -1,0 +1,22 @@
+.env
+.git
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Large data directories not needed in container
+data/datasets/
+data/databases/
+data/indices/
+qdrant_storage/
+
+# Frontend and scripts
+frontend/
+scripts/
+evaluation/
+logs/
+
+# Test files
+test_*.py
+*.log

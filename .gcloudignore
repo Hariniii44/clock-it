@@ -1,0 +1,29 @@
+.gcloudignore
+.git
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.arrow
+*.index
+*.faiss
+*.npy
+
+# Exclude large data subdirectories
+data/datasets/
+data/databases/
+data/indices/
+
+# Exclude these entirely
+qdrant_storage/
+evaluation/
+venv/
+bias_aware_env/
+.env
+frontend/
+logs/
+
+# Exclude test files
+test_*.py
+*.log
