@@ -1,0 +1,81 @@
+Device set to use cpu
+
+============================================================
+ERA: Ranil/UNP Government  (2023-12-10 to 2024-09-22)
+============================================================
+
+[1/4] Building era-specific politician file...
+  Saved politician file -> data/sri_lankan_politicians_era2.json
+  Government: 15 names, Opposition: 61 names
+
+[2/4] Filtering political articles for this era...
+  Date-filtered: 18363 articles (2023-12-10 -> 2024-09-22)
+  Per source:
+source
+adaderana.lk       5363
+dailymirror.lk     4371
+ft.lk              2960
+island.lk          2673
+economynext.com    2633
+newsfirst.lk        363
+  Political articles: 3035 (16.5% of era total)
+  Saved -> data/political_articles_era2.csv
+
+[3/4] Grouping related articles...
+Grouping 3035 political articles into related events...
+Processing 3035 articles with valid headlines
+Created 100 groups, 2706 articles remaining
+Created 200 groups, 2408 articles remaining
+Created 300 groups, 2107 articles remaining
+Created 400 groups, 1802 articles remaining
+Created 500 groups, 1523 articles remaining
+Created 600 groups, 1181 articles remaining
+Created 700 groups, 721 articles remaining
+Created 778 article groups
+
+Group Statistics:
+   Total groups: 778
+   Average group size: 2.5 sources
+   Median group size: 2 sources
+   Largest group: 6 sources
+   Smallest group: 2 sources
+
+Source participation in groups:
+   adaderana.lk: 493 groups (63.4%)
+   dailymirror.lk: 473 groups (60.8%)
+   economynext.com: 238 groups (30.6%)
+   ft.lk: 407 groups (52.3%)
+   island.lk: 259 groups (33.3%)
+   newsfirst.lk: 42 groups (5.4%)
+Saved 778 article groups to data/article_groups_era2.json
+
+[4/4] Running ABSA bias analysis (this takes a while)...
+Loading pre-trained ABSA model...
+ABSA model loaded successfully
+Loaded 71 politicians
+   Government: 13 politicians
+   Opposition: 58 politicians
+Analyzing bias across 778 article groups...
+Analyzing 6 sources: ['adaderana.lk', 'dailymirror.lk', 'economynext.com', 'ft.lk', 'island.lk', 'newsfirst.lk']
+Processed 200/778 groups
+Processed 400/778 groups
+Processed 600/778 groups
+Calculated bias matrix for 6 sources
+Processed 778 valid groups
+Saved bias matrix to data/bias_matrix_era2.json
+Building bias graph from matrix...
+   Graph created: 6 nodes, 15 edges
+Removing cycles from graph...
+Traceback (most recent call last):
+  File "F:\1FINAL YEAR\FYP\implementation\full2\run_era_profiling.py", line 301, in <module>
+    result = run_era(era_key)
+  File "F:\1FINAL YEAR\FYP\implementation\full2\run_era_profiling.py", line 243, in run_era
+    acyclic = scorer.remove_cycles(graph)
+  File "F:\1FINAL YEAR\FYP\implementation\full2\src\bias_profiling\bias_scorer.py", line 93, in remove_cycles
+    print(f"   Removed edge: {max_edge[0]} -> {max_edge[1]} (weight: {max_weight:.3f})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 30: character maps to <undefined>
+>
