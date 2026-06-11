@@ -40,23 +40,51 @@ _KNOWN_NEWS_SOCIAL_HANDLES: Dict[str, Dict[str, str]] = {
     },
 }
 
+_ERA_CUTOFF = "2024-09-23"  # NPP election win — era3 begins
+
+
 class EvidenceWeighter:
     def __init__(self):
         """
         Enhanced evidence weighting with bias profiling integration
         """
-        # Load pre-computed bias profiles
-        self.bias_profiles = self._load_bias_profiles()
-        print(f" Evidence weighter loaded with {len(self.bias_profiles)} source profiles")
+        self.bias_profiles  = self._load_profile_file("data/bias_profiles.json")   # merged, era3-default
+        self._era2_profiles = self._load_profile_file("data/bias_profiles_era2.json")
+        self._era3_profiles = self._load_profile_file("data/bias_profiles_era3.json")
+        print(f" Evidence weighter loaded with {len(self.bias_profiles)} source profiles "
+              f"(era2={len(self._era2_profiles)}, era3={len(self._era3_profiles)})")
 
     def _load_bias_profiles(self) -> dict:
-        """Load pre-computed bias profiles from bias detection pipeline"""
+        return self.bias_profiles  # kept for external callers
+
+    @staticmethod
+    def _load_profile_file(path: str) -> dict:
         try:
-            with open("data/bias_profiles.json", 'r', encoding='utf-8') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print(" Bias profiles not found. Using text-based analysis only.")
             return {}
+
+    def _get_profile(self, domain: str, date_str: str = "") -> dict:
+        """Return the era-appropriate bias profile entry for a domain.
+
+        Selects era2 profiles for articles published before the NPP election
+        cutoff, era3 for articles on/after it.  Falls back gracefully when
+        the date is unknown or the source is absent from the era-specific set.
+        """
+        if date_str:
+            try:
+                from datetime import date
+                parts = date_str.split("T")[0].strip()           # handle ISO datetimes
+                article_date = date.fromisoformat(parts[:10])
+                cutoff       = date.fromisoformat(_ERA_CUTOFF)
+                era_profiles = self._era2_profiles if article_date < cutoff else self._era3_profiles
+                if domain in era_profiles:
+                    return era_profiles[domain]
+            except (ValueError, AttributeError):
+                pass
+        # Unknown date or source not in era-specific file — use merged default
+        return self.bias_profiles.get(domain, {})
 
     def _extract_domain(self, url: str) -> str:
         """Extract domain from URL for bias profile lookup"""
@@ -70,31 +98,34 @@ class EvidenceWeighter:
         except:
             return ""
 
-    def calculate_bias_claim_alignment(self, claim: str, bias_analysis: Dict, evidence_url: str = None) -> float:
+    def calculate_bias_claim_alignment(self, claim: str, bias_analysis: Dict,
+                                       evidence_url: str = None, evidence_date: str = "") -> float:
         """
-        Enhanced bias-claim alignment calculation using both source profiles and text analysis
+        Enhanced bias-claim alignment calculation using both source profiles and text analysis.
+        evidence_date (YYYY-MM-DD) selects the era-appropriate bias profile.
         """
-        # Check if we have source profile information
         domain = self._extract_domain(evidence_url) if evidence_url else None
-        has_profile = domain in self.bias_profiles if domain else False
-        
-        if has_profile:
-            return self._calculate_alignment_with_profile(claim, bias_analysis, domain)
+        profile = self._get_profile(domain, evidence_date) if domain else {}
+
+        if profile:
+            return self._calculate_alignment_with_profile(claim, bias_analysis, domain,
+                                                          profile=profile)
         else:
             return self._calculate_alignment_text_only(claim, bias_analysis)
 
-    def _calculate_alignment_with_profile(self, claim: str, bias_analysis: Dict, domain: str) -> float:
+    def _calculate_alignment_with_profile(self, claim: str, bias_analysis: Dict,
+                                           domain: str, profile: dict = None) -> float:
         """Calculate alignment when source profile is available"""
         # Enhanced political keyword detection
-        government_keywords = ["government", "administration", "policy", "minister", 
-                            "president", "cabinet", "parliament", "NPP", "opposition", 
+        government_keywords = ["government", "administration", "policy", "minister",
+                            "president", "cabinet", "parliament", "NPP", "opposition",
                             "election", "political", "party", "MP", "MPs", "representative"]
-        
+
         claim_lower = claim.lower()
         is_political_claim = any(kw in claim_lower for kw in government_keywords)
-        
-        # Get source bias information
-        source_profile = self.bias_profiles[domain]
+
+        # Get source bias information (use passed profile, or fall back to merged default)
+        source_profile = profile if profile else self.bias_profiles.get(domain, {})
         source_bias_score = abs(source_profile["bias_score"])  # Absolute bias magnitude (0-50)
         source_confidence = source_profile["confidence"]
         
@@ -495,14 +526,19 @@ class EvidenceWeighter:
                 print(f"  [Weighter] Source {i + 1} marked IRRELEVANT — excluded from verdict")
                 continue
 
-            evidence_url = evidence.get("link", "")
+            evidence_url  = evidence.get("link", "")
+            evidence_date = (evidence.get("date", "") or evidence.get("published_date", "") or "")
+            # Normalise ISO datetimes to YYYY-MM-DD for era selection
+            if evidence_date and "T" in evidence_date:
+                evidence_date = evidence_date.split("T")[0]
 
             # Use pre-computed claim-relative alignment when available,
             # otherwise fall back to the profile-based calculation.
             if precomputed_alignments and i < len(precomputed_alignments):
                 alignment = precomputed_alignments[i]
             else:
-                alignment = self.calculate_bias_claim_alignment(claim, bias, evidence_url)
+                alignment = self.calculate_bias_claim_alignment(claim, bias, evidence_url,
+                                                                evidence_date=evidence_date)
 
             # Pull framing consistency for this source (if available)
             framing_entry = framing_by_index.get(i, {})
