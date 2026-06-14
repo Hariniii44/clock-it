@@ -72,8 +72,12 @@ async def lifespan(app: FastAPI):
     from src.bias_detection.claim_bias_analyzer import ClaimBiasAnalyzer
     from src.evidence_weighting import EvidenceWeighter, VerdictGenerator
 
-    _models["hybrid_retriever"] = HybridRetriever()
-    print("  HybridRetriever ready")
+    try:
+        _models["hybrid_retriever"] = HybridRetriever()
+        print("  HybridRetriever ready")
+    except Exception as e:
+        _models["hybrid_retriever"] = None
+        print(f"  HybridRetriever unavailable (Qdrant not reachable): {e}")
 
     WEB_RETRIEVER = 'google_ai_mode'
     if WEB_RETRIEVER == 'google_ai_mode' and Config.SERP_API_KEY:
@@ -283,6 +287,8 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
     def _retrieval():
         def _db():
             try:
+                if m["hybrid_retriever"] is None:
+                    return []
                 results = m["hybrid_retriever"].hybrid_search(
                     query=claim, claim_types=None, total_results=10, use_query_expansion=True
                 )
