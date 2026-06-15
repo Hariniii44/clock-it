@@ -1,6 +1,4 @@
 [build]
+  base    = "frontend"
   command = ""
-  publish = "frontend"
-
-[build.environment]
-  NETLIFY_SKIP_RUNTIME_DETECTION = "true"
+  publish = "."
