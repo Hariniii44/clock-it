@@ -134,9 +134,9 @@ class GeminiNLIVerifier:
     """
 
     DEFAULT_MODELS = [
-        "models/gemini-2.5-flash",
-        "models/gemini-2.5-flash-lite",
-        "models/gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
     ]
 
     def __init__(
@@ -150,13 +150,12 @@ class GeminiNLIVerifier:
                 "google-genai package not installed. Run: pip install google-genai"
             )
 
-        resolved_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        if not resolved_key:
-            raise ValueError(
-                "Gemini API key required. Pass api_key= or set GEMINI_API_KEY."
-            )
-
-        self.client = genai.Client(api_key=resolved_key)
+        from config import Config
+        self.client = genai.Client(
+            vertexai=True,
+            project=Config.GCP_PROJECT,
+            location=Config.GCP_LOCATION,
+        )
         self.model_names = model_names or self.DEFAULT_MODELS
         self.max_retries = max_retries
         self._model_usage: Dict[str, int] = {m: 0 for m in self.model_names}

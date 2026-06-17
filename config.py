@@ -18,6 +18,10 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     SERP_API_KEY = os.getenv('SERP_API_KEY', '')       # SerpAPI for Google AI Mode
 
+    # VERTEX AI — used everywhere (local auth via: gcloud auth application-default login)
+    GCP_PROJECT  = os.getenv('GCP_PROJECT', 'verifylk-backend-2')
+    GCP_LOCATION = os.getenv('GCP_LOCATION', 'us-central1')
+
     # QDRANT SETTINGS
     QDRANT_URL = os.getenv('QDRANT_URL', 'http://localhost:6333')
     

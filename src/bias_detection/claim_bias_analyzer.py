@@ -262,20 +262,25 @@ class ClaimBiasAnalyzer:
     }
 
     FALLBACK_MODELS = [
-        'models/gemini-2.5-flash',
-        'models/gemini-2.5-flash-lite',
-        'models/gemini-3-flash-preview',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
     ]
 
     def __init__(self, gemini_api_key: str = ''):
         self.api_key      = gemini_api_key or os.getenv('GEMINI_API_KEY', '')
-        self.model        = 'models/gemini-2.5-flash'
+        self.model        = 'gemini-2.5-flash'
         self.bias_profiles = self._load_bias_profiles()
         self._client: Optional[genai.Client] = None
 
     def _get_client(self) -> genai.Client:
         if self._client is None:
-            self._client = genai.Client(api_key=self.api_key)
+            from config import Config
+            self._client = genai.Client(
+                vertexai=True,
+                project=Config.GCP_PROJECT,
+                location=Config.GCP_LOCATION,
+            )
         return self._client
 
     @staticmethod

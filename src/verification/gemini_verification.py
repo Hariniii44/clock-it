@@ -48,19 +48,19 @@ class GeminiClaimVerifier:
             model_names: List of Gemini models to try in order (fallback on rate limits)
             max_retries: Maximum number of retries per model for rate-limited requests
         """
-        # Configure API
-        api_key = api_key or os.getenv('GEMINI_API_KEY')
-        if not api_key:
-            raise ValueError("Google AI API key required. Set GEMINI_API_KEY environment variable.")
-        
-        # Initialize client with new API
-        self.client = genai.Client(api_key=api_key)
+        # Configure API — Vertex AI everywhere (local: gcloud auth application-default login)
+        from config import Config
+        self.client = genai.Client(
+            vertexai=True,
+            project=Config.GCP_PROJECT,
+            location=Config.GCP_LOCATION,
+        )
         
         # Model fallback configuration - using confirmed available models
         self.model_names = model_names or [
-            "models/gemini-2.5-flash",          # Primary
-            "models/gemini-2.5-flash-lite",     # Fallback 1: lighter 2.5, separate quota
-            "models/gemini-3-flash-preview",    # Fallback 2: preview, separate quota
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
         ]
         self.current_model_index = 0  # Start with first model
         self.model_usage_stats = {model: 0 for model in self.model_names}

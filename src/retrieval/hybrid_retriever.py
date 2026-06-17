@@ -372,10 +372,10 @@ class HybridRetriever:
         try:
             # Try to import your existing evidence retrieval
             try:
-                from evidence_retrieval import retrieve_evidence
-                
-                # Use your existing Serper-based search
-                web_results = retrieve_evidence(query, num_sources=num_results)
+                from src.evidence_retrieval.evidence_retrieval import AdvancedEvidenceRetriever
+                from config import Config
+                retriever = AdvancedEvidenceRetriever(serper_key=Config.SERPER_KEY)
+                web_results = retriever.retrieve_evidence_dataset_first(query, num_results=num_results)
                 
                 # Convert to consistent format
                 formatted_results = []

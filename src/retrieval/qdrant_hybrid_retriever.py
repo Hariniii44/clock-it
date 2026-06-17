@@ -163,8 +163,10 @@ class QdrantHybridRetriever:
     def _search_web(self, query: str, num_results: int) -> List[Dict]:
         """Web search fallback — mirrors HybridRetriever.search_web()."""
         try:
-            from src.evidence_retrieval.evidence_retrieval import retrieve_evidence
-            web_results = retrieve_evidence(query, num_sources=num_results)
+            from src.evidence_retrieval.evidence_retrieval import AdvancedEvidenceRetriever
+            from config import Config
+            retriever = AdvancedEvidenceRetriever(serper_key=Config.SERPER_KEY)
+            web_results = retriever.retrieve_evidence_dataset_first(query, num_results=num_results)
             formatted = []
             for r in web_results:
                 text = r.get('snippet', r.get('content', ''))
