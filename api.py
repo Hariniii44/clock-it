@@ -18,6 +18,12 @@ from typing import Any
 
 sys.path.append('src')
 
+# Ensure print() output works on Windows consoles that default to cp1252
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -27,6 +33,7 @@ from pydantic import BaseModel
 
 from config import Config
 from verification.gemini_verification import GeminiClaimVerifier
+from src.agent.graph import investigative_agent
 
 from core_pipeline import (
     detect_temporal_claim,
@@ -997,4 +1004,98 @@ async def stream_bias_explanation(request: ExplainRequest):
         generate(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# /verify/deep — investigative agent (citation-chain aware, sub-claim level)
+# ---------------------------------------------------------------------------
+
+_NODE_LABELS = {
+    "decompose_claim":    "Decomposing claim into sub-claims...",
+    "retrieve_evidence":  "Retrieving evidence...",
+    "investigate_source": "Investigating sources...",
+    "follow_citation":    "Following citation chains...",
+    "dedup_by_origin":    "Deduplicating by origin...",
+    "assess_sub_claim":   "Assessing sub-claim...",
+    "synthesise_verdict": "Synthesising verdict...",
+}
+
+
+@app.post("/verify/deep")
+async def verify_deep(request: VerifyRequest):
+    """
+    Investigative agent — slower but more accurate for complex, contested, or
+    high-stakes claims. Follows citation chains, deduplicates sources by origin,
+    and assesses each sub-claim independently before synthesising a final verdict.
+    """
+    claim = request.claim.strip()
+    if not claim:
+        raise HTTPException(status_code=400, detail="claim must not be empty")
+
+    try:
+        result = await investigative_agent.ainvoke({"claim": claim})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Investigative agent failed: {e}")
+
+    return {
+        "claim": claim,
+        "verdict": result["final_verdict"],
+        "confidence": result["final_confidence"],
+        "explanation": result["final_explanation"],
+        "precision_issues": result.get("precision_issues", []),
+        "geography_issues": result.get("geography_issues", []),
+        "sub_claim_results": [
+            {
+                "sub_claim": r["sub_claim"]["text"],
+                "type": r["sub_claim"]["type"],
+                "verdict": r["verdict"],
+                "reasoning": r["reasoning"],
+                "precision_gap": r["precision_gap"],
+                "independent_sources": len(r["independent_sources"]),
+                "total_sources": len(r["all_sources"]),
+            }
+            for r in result.get("sub_claim_results", [])
+        ],
+    }
+
+
+@app.post("/verify/deep/stream")
+async def verify_deep_stream(request: VerifyRequest):
+    """
+    Streaming version of /verify/deep — emits Server-Sent Events as each
+    agent node starts, then sends the full result when synthesis completes.
+    """
+    claim = request.claim.strip()
+    if not claim:
+        raise HTTPException(status_code=400, detail="claim must not be empty")
+
+    async def generate():
+        try:
+            async for event in investigative_agent.astream_events(
+                {"claim": claim}, version="v2"
+            ):
+                kind = event.get("event", "")
+                name = event.get("name", "")
+
+                if kind == "on_chain_start" and name in _NODE_LABELS:
+                    yield f"data: {json.dumps({'type': 'status', 'node': name, 'message': _NODE_LABELS[name]})}\n\n"
+
+                elif kind == "on_chain_end" and name == "synthesise_verdict":
+                    output = event.get("data", {}).get("output", {})
+                    yield f"data: {json.dumps({'type': 'result', 'verdict': output.get('final_verdict', 'UNCERTAIN'), 'confidence': output.get('final_confidence', 0.0), 'explanation': output.get('final_explanation', ''), 'precision_issues': output.get('precision_issues', []), 'geography_issues': output.get('geography_issues', [])})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
