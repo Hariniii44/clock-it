@@ -282,17 +282,24 @@
       display: none;
       flex-direction: column;
       align-items: center;
-      padding: 40px 0;
+      padding: 32px 0 20px;
+      width: 100%;
+    }
+
+    #loading-spinner-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 28px;
     }
 
     .spinner {
       width: 44px; height: 44px;
       border: 3px solid var(--border);
       border-top-color: var(--accent);
-
       border-radius: 50%;
       animation: spin .8s linear infinite;
-      margin-bottom: 28px;
+      margin-bottom: 16px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -301,6 +308,14 @@
       color: var(--muted);
       min-height: 20px;
       transition: opacity .3s;
+    }
+
+    #live-sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      width: 100%;
+      margin-top: 4px;
     }
 
     /* Results state */
@@ -630,6 +645,12 @@
     .badge-REFUTED   { background: rgba(255,107,107,.15); color: #ff6b6b; border: 1px solid rgba(255,107,107,.3); }
     .badge-NEUTRAL   { background: rgba(122,122,112,.15); color: var(--muted); border: 1px solid var(--border); }
     .badge-error     { background: rgba(122,122,112,.1); color: var(--muted); }
+    .badge-pending   { background: transparent; color: var(--muted); border: 1px solid var(--border); letter-spacing: .2em; }
+    @keyframes ev-enter        { from { opacity: 0; transform: translateY(12px); } to { opacity: 0.55; transform: translateY(0); } }
+    @keyframes pending-pulse   { 0%,100% { opacity: .55; } 50% { opacity: .35; } }
+    .ev-card.ev-pending {
+      animation: ev-enter .28s ease forwards, pending-pulse 1.8s ease-in-out .28s infinite;
+    }
 
     .ev-source {
       font-family: var(--mono);
@@ -1210,8 +1231,11 @@
 
         <!-- LOADING STATE -->
         <div id="loading-state">
-          <div class="spinner"></div>
-          <div id="loading-msg">Retrieving evidence...</div>
+          <div id="loading-spinner-wrap">
+            <div class="spinner"></div>
+            <div id="loading-msg">Retrieving evidence...</div>
+          </div>
+          <div id="live-sources-grid"></div>
         </div>
 
         <!-- RESULTS STATE -->
@@ -1384,8 +1408,8 @@
     //   ? 'http://localhost:8000'
     //   : 'https://verifylk-api-456488462275.us-central1.run.app';
 
-    // const API_BASE = 'http://localhost:8000';
-    const API_BASE = 'https://verifylk-api-604936778695.us-central1.run.app';
+    const API_BASE = 'http://localhost:8000';
+    // const API_BASE = 'https://verifylk-api-604936778695.us-central1.run.app';
     // -----------------------------------------------------------------------
     // Loading message — driven by real SSE status events
     // -----------------------------------------------------------------------
@@ -1427,9 +1451,10 @@
       showState('loading');
       setLoadingMsg('Analyzing temporal context...');
 
-      // Hide details + banner from a previous run
+      // Hide details + banner from a previous run and clear live card grid
       document.getElementById('details-section').style.display = 'none';
       document.getElementById('temporal-banner').style.display = 'none';
+      document.getElementById('live-sources-grid').innerHTML = '';
 
       try {
         const res = await fetch(`${API_BASE}/verify/stream`, {
@@ -1462,6 +1487,12 @@
 
             if (event.type === 'status') {
               setLoadingMsg(event.message);
+            } else if (event.type === 'evidence') {
+              renderPendingEvidence(event.sources, event.phase);
+            } else if (event.type === 'source_divider') {
+              appendSourceDivider(event.label);
+            } else if (event.type === 'source') {
+              appendPendingSource(event.source);
             } else if (event.type === 'result') {
               renderResults(event.data);
             } else if (event.type === 'error') {
@@ -1474,6 +1505,80 @@
         showState('input');
         showError(e.message || 'Verification failed. Is the server running?');
       }
+    }
+
+    // -----------------------------------------------------------------------
+    // Render pending evidence cards (before NLI/bias — no verdict yet)
+    // -----------------------------------------------------------------------
+    function appendSourceDivider(label) {
+      const grid = document.getElementById('live-sources-grid');
+      // Show the panel on first content
+      const section = document.getElementById('details-section');
+      if (section.style.display !== 'block') section.style.display = 'none'; // keep hidden, panel is in loading state
+      grid.insertAdjacentHTML('beforeend',
+        `<div class="ev-excluded-divider">${escapeHtml(label)}</div>`);
+    }
+
+    function appendPendingSource(s) {
+      const grid = document.getElementById('live-sources-grid');
+      const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
+      const titleHtml    = s.link
+        ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
+        : titleDisplay;
+      const sourceDomain = s.source || extractDomain(s.link || '');
+      const dateStr  = s.date ? escapeHtml(s.date) : '';
+      const snippet  = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+
+      grid.insertAdjacentHTML('beforeend', `
+        <div class="ev-card ev-pending">
+          <div class="ev-card-top">
+            <div class="ev-title">${titleHtml}</div>
+            <span class="verdict-badge badge-pending">···</span>
+          </div>
+          <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
+          ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
+        </div>`);
+    }
+
+    function renderPendingEvidence(sources, phase) {
+      if (!sources || !sources.length) return;
+
+      const grid = document.getElementById('live-sources-grid');
+
+      // Split by actual evidence_type so Qdrant web-fallback results are not
+      // shown under the "Government database" heading
+      const dbSources  = sources.filter(s => s.evidence_type === 'database');
+      const webSources = sources.filter(s => s.evidence_type !== 'database');
+
+      const renderGroup = (group, label) => {
+        if (!group.length) return;
+        const current = grid.querySelectorAll('.ev-card').length;
+        grid.insertAdjacentHTML('beforeend',
+          `<div class="ev-excluded-divider" style="margin-top:${current > 0 ? '8px' : '0'}">${label} — verifying…</div>`);
+        group.forEach((s, i) => {
+          setTimeout(() => {
+            const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
+            const titleHtml    = s.link
+              ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
+              : titleDisplay;
+            const sourceDomain = s.source || extractDomain(s.link || '');
+            const dateStr  = s.date ? escapeHtml(s.date) : '';
+            const snippet  = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+            grid.insertAdjacentHTML('beforeend', `
+              <div class="ev-card ev-pending">
+                <div class="ev-card-top">
+                  <div class="ev-title">${titleHtml}</div>
+                  <span class="verdict-badge badge-pending">···</span>
+                </div>
+                <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
+                ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
+              </div>`);
+          }, i * 130);
+        });
+      };
+
+      renderGroup(dbSources, 'Government database');
+      renderGroup(webSources, 'Web sources');
     }
 
     // -----------------------------------------------------------------------
