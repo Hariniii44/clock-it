@@ -745,7 +745,7 @@ class VerdictGenerator:
             link = ev.get("link", "") or ev.get("url", "")
 
             # Database source check
-            if ev.get("source_type") == "database":
+            if ev.get("evidence_type") == "database" or ev.get("source_type") == "database":
                 has_database_source = True
 
             # Official/high-authority source check
@@ -778,7 +778,9 @@ class VerdictGenerator:
 
         no_official = not has_official_source and not has_database_source
         recent_ratio = (recent_sources / dated_sources) if dated_sources > 0 else None
-        mostly_recent = (recent_ratio is None) or (recent_ratio >= MIN_RECENT_RATIO)
+        # Only flag as recent if we actually have dates to check; undated sources
+        # cannot be assumed to be newly published (they may cover historical events).
+        mostly_recent = dated_sources > 0 and recent_ratio >= MIN_RECENT_RATIO
 
         is_newly_developing = no_official and mostly_recent
 
