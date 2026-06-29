@@ -116,9 +116,9 @@
     #hero {
       min-height: calc(100vh - 60px);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      padding: 64px 24px;
+      padding: 24px 24px;
     }
 
     .hero-inner {
@@ -138,25 +138,59 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 32px;
+      gap: 18px;
     }
 
     .landing-brand { text-align: center; }
 
+    .landing-wordmark {
+      font-family: var(--serif);
+      font-size: clamp(56px, 10vw, 96px);
+      font-weight: 400;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .wm-lk { color: var(--accent); }
+
+    .landing-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+    .landing-kicker::before, .landing-kicker::after {
+      content: '';
+      width: 32px;
+      height: 1px;
+      background: var(--border);
+    }
+
     .landing-title {
       font-family: var(--serif);
-      font-size: clamp(36px, 6vw, 56px);
+      font-size: clamp(26px, 4vw, 40px);
       font-weight: 400;
       line-height: 1.1;
       color: var(--text);
-      margin-bottom: 16px;
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+    .landing-title em {
+      font-style: italic;
+      color: var(--accent);
     }
 
     .landing-sub {
-      font-size: 15px;
+      font-size: 14px;
       color: var(--muted);
-      line-height: 1.65;
-      max-width: 500px;
+      line-height: 1.6;
+      max-width: 460px;
       margin: 0 auto;
     }
 
@@ -164,11 +198,11 @@
       width: 100%;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
+      border-radius: 14px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 10px;
       box-shadow: 0 2px 16px rgba(0,0,0,.06);
     }
 
@@ -247,8 +281,8 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 20px;
-      padding: 7px 14px;
-      font-size: 13px;
+      padding: 5px 12px;
+      font-size: 12px;
       color: var(--text);
       cursor: pointer;
       transition: border-color .2s, background .2s;
@@ -260,7 +294,7 @@
 
     .landing-features {
       display: flex;
-      gap: 24px;
+      gap: 20px;
       flex-wrap: wrap;
       justify-content: center;
     }
@@ -275,6 +309,17 @@
       content: '·';
       color: var(--accent);
       font-weight: 700;
+    }
+    .ai-disclaimer {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      opacity: 0.7;
+      margin: 0;
+    }
+    .ai-disclaimer--results {
+      text-align: left;
+      margin-bottom: 24px;
     }
 
     /* =====================================================================
@@ -1076,7 +1121,7 @@
       .stats-grid { grid-template-columns: 1fr 1fr; }
       .bias-grid { grid-template-columns: 1fr; }
       .uncertainty-grid { grid-template-columns: 1fr; }
-      .landing-title { font-size: 32px; }
+      .landing-title { font-size: 36px; }
     }
     @media (max-width: 500px) {
       .stats-grid { grid-template-columns: 1fr; }
@@ -1109,9 +1154,11 @@
 
       <!-- INPUT STATE -->
       <div id="input-state">
-        <div class="landing-brand" style="margin-bottom:36px">
-          <h1 class="landing-title">Check a claim<br>before you share it.</h1>
-          <p class="landing-sub">VerifyLK searches the evidence, weighs every source by credibility and bias, and explains its verdict — including exactly what it's unsure about.</p>
+        <div class="landing-brand">
+          <div class="landing-wordmark">Verify<span class="wm-lk">LK</span></div>
+          <div class="landing-kicker">Automated Bias-aware fact checking for Sri Lanka</div>
+          <h1 class="landing-title">Check your claim<br><em>before you share it.</em></h1>
+          <p class="landing-sub">Searches the evidence, weighs every source by credibility and bias, and explains its verdict, including exactly what it's unsure about.</p>
         </div>
 
         <div class="search-card">
@@ -1141,6 +1188,7 @@
           <span>Detects bias</span>
           <span>Shows its uncertainty</span>
         </div>
+        <p class="ai-disclaimer">VerifyLK uses AI to weigh evidence and generate verdicts. Use at your own risk.</p>
       </div><!-- #input-state -->
 
       <!-- LOADING STATE -->
@@ -1234,6 +1282,7 @@
         </div>
 
       </div><!-- .results-summary -->
+      <p class="ai-disclaimer ai-disclaimer--results">VerifyLK uses AI to weigh evidence and generate verdicts. Use at your own risk.</p>
 
       <!-- AI Explanation (always visible, streams in) -->
       <div class="explanation-section">
@@ -1437,7 +1486,7 @@
         ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
         : titleDisplay;
       const sourceDomain = s.source || extractDomain(s.link || '');
-      const dateStr  = s.date ? escapeHtml(s.date) : '';
+      const dateStr  = escapeHtml(s.date || s.published_date || '');
       const snippet  = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
       grid.insertAdjacentHTML('beforeend', `
         <div class="ev-card ev-pending">
@@ -1468,7 +1517,7 @@
               ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
               : titleDisplay;
             const sourceDomain = s.source || extractDomain(s.link || '');
-            const dateStr  = s.date ? escapeHtml(s.date) : '';
+            const dateStr  = escapeHtml(s.date || s.published_date || '');
             const snippet  = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
             grid.insertAdjacentHTML('beforeend', `
               <div class="ev-card ev-pending">
@@ -1703,7 +1752,7 @@
       const vDisplay     = isExcluded ? 'Not evaluated' : vLabel;
       const weight       = s.weight != null ? s.weight.toFixed(3) : '—';
       const sourceDomain = s.source || extractDomain(s.link || '');
-      const dateStr      = s.date ? escapeHtml(s.date) : '';
+      const dateStr      = escapeHtml(s.date || s.published_date || '');
       const snippet      = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
       const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
       const titleHtml    = s.link
