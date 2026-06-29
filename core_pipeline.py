@@ -653,19 +653,20 @@ def main():
     print("STEP 1: DUAL EVIDENCE RETRIEVAL")
     print("="*70)
     
-    # Database evidence (Government sources)
-    print("Retrieving database evidence (government documents)...")
-    try:
-        database_evidence = hybrid_retriever.hybrid_search(
+    # Database + web retrieval run concurrently
+    print("Retrieving database and web evidence in parallel...")
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _fetch_db():
+        results = hybrid_retriever.hybrid_search(
             query=claim,
             claim_types=None,
             total_results=10,
             use_query_expansion=True
         )
-        
-        db_formatted = []
-        for result in database_evidence:
-            formatted = {
+        formatted = []
+        for result in results:
+            formatted.append({
                 'source': result['source'],
                 'title': result['title'],
                 'snippet': result.get('passage', result['text']),
@@ -674,47 +675,51 @@ def main():
                 'authority': result['authority'],
                 'relevance_score': result['similarity_score'],
                 'evidence_type': 'database'
-            }
-            db_formatted.append(formatted)
-        
-        print(f"  Database sources: {len(db_formatted)}")
-        
-    except Exception as e:
-        print(f"  Database retrieval failed: {e}")
-        db_formatted = []
-    
-    # Web evidence (Independent sources) - SIMPLIFIED RETRIEVAL
-    print("Retrieving web evidence (independent sources)...")
-    try:
-        # Simplified approach: no complex temporal logic, just get most relevant results
-        web_evidence = web_retriever.retrieve_hybrid_serper_decomposition(
-            claim, 
+            })
+        return formatted
+
+    def _fetch_web():
+        evidence = web_retriever.retrieve_hybrid_serper_decomposition(
+            claim,
             num_results=10,
             results_per_query=8
         )
-        
-        for e in web_evidence:
+        for e in evidence:
             e['evidence_type'] = 'web'
+        return evidence
 
-        # Display Google AI Mode synthesis if available
-        synthesis = next(
-            (e.get('google_synthesis') for e in web_evidence if e.get('google_synthesis')),
-            None
-        )
-        if synthesis:
-            print("\n" + "─"*70)
-            print("GOOGLE AI MODE SYNTHESIS (no bias analysis):")
-            print("─"*70)
-            for line in synthesis.splitlines():
-                if line.strip():
-                    print(f"  {line}")
-            print("─"*70)
+    db_formatted = []
+    web_evidence = []
 
-        print(f"\n  Web sources: {len(web_evidence)}")
-        
-    except Exception as e:
-        print(f"  Web retrieval failed: {e}")
-        web_evidence = []
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_db  = executor.submit(_fetch_db)
+        future_web = executor.submit(_fetch_web)
+        futures = {future_db: 'db', future_web: 'web'}
+        for future in as_completed(futures):
+            tag = futures[future]
+            try:
+                if tag == 'db':
+                    db_formatted = future.result()
+                    print(f"  Database sources: {len(db_formatted)}")
+                else:
+                    web_evidence = future.result()
+                    print(f"  Web sources: {len(web_evidence)}")
+            except Exception as e:
+                print(f"  {tag} retrieval failed: {e}")
+
+    # Display Google AI Mode synthesis if available
+    synthesis = next(
+        (e.get('google_synthesis') for e in web_evidence if e.get('google_synthesis')),
+        None
+    )
+    if synthesis:
+        print("\n" + "─"*70)
+        print("GOOGLE AI MODE SYNTHESIS (no bias analysis):")
+        print("─"*70)
+        for line in synthesis.splitlines():
+            if line.strip():
+                print(f"  {line}")
+        print("─"*70)
     
     # Combine evidence
     all_evidence = db_formatted + web_evidence
