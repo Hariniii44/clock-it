@@ -10,6 +10,7 @@ Run with:
 
 import asyncio
 import json
+import queue as _queue
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -270,6 +271,21 @@ class VerifyResponse(BaseModel):
 #   {"type": "error",  "message": "..."}               — fatal, stop
 #   {"type": "result", "data": {...}, "_cache": {...}}  — final result
 # ---------------------------------------------------------------------------
+def _slim_sources(sources: list) -> list:
+    """Minimal evidence fields for pending cards — no verdict/weight yet."""
+    return [
+        {
+            "title":         s.get("title", ""),
+            "link":          s.get("link", ""),
+            "source":        s.get("source", ""),
+            "evidence_type": s.get("evidence_type", ""),
+            "snippet":       (s.get("snippet", "") or "")[:300],
+            "date":          s.get("date", "") or s.get("date_raw", ""),
+        }
+        for s in sources
+    ]
+
+
 async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
     loop = asyncio.get_running_loop()
 
@@ -284,49 +300,116 @@ async def _pipeline_steps(claim: str, m: dict, disable_bias: bool = False):
     # ------------------------------------------------------------------
     yield {"type": "status", "message": "Retrieving evidence from database and web..."}
 
-    def _retrieval():
-        def _db():
-            try:
-                if m["hybrid_retriever"] is None:
-                    return []
-                results = m["hybrid_retriever"].hybrid_search(
-                    query=claim, claim_types=None, total_results=10, use_query_expansion=True
-                )
-                formatted = [
-                    {
-                        "source": r["source"], "title": r["title"],
-                        "snippet": r.get("passage", r["text"]), "link": r["url"],
-                        "dataset_source": r["dataset"], "authority": r["authority"],
-                        "relevance_score": r["similarity_score"], "evidence_type": "database",
-                    }
-                    for r in results
-                ]
-                # Qdrant already ranks by semantic similarity — skip the
-                # cross-encoder filter here so high-quality chunks aren't
-                # incorrectly dropped by the MS-MARCO-trained model.
-                return formatted
-            except Exception as e:
-                print(f"  Database retrieval failed: {e}")
+    def _db():
+        try:
+            if m["hybrid_retriever"] is None:
                 return []
+            results = m["hybrid_retriever"].hybrid_search(
+                query=claim, claim_types=None, total_results=10, use_query_expansion=True
+            )
+            return [
+                {
+                    "source": r["source"], "title": r["title"],
+                    "snippet": r.get("passage", r["text"]), "link": r["url"],
+                    "dataset_source": r["dataset"], "authority": r["authority"],
+                    "relevance_score": r["similarity_score"],
+                    # Qdrant web-fallback has retrieval_method="web_search" / dataset="web_search"
+                    "evidence_type": (
+                        "database"
+                        if r.get("retrieval_method", "qdrant") != "web_search"
+                        and r.get("dataset", "") != "web_search"
+                        else "web"
+                    ),
+                }
+                for r in results
+            ]
+        except Exception as e:
+            print(f"  Database retrieval failed: {e}")
+            return []
 
-        def _web():
+    # Queue receives individual sources the moment Serper returns them
+    _source_q: _queue.Queue = _queue.Queue()
+
+    def _web():
+        def _on_source(slim_ref):
+            _source_q.put(slim_ref)
+
+        try:
+            results = m["web_retriever"].retrieve_hybrid_serper_decomposition(
+                claim, num_results=15, results_per_query=8,
+                source_callback=_on_source,
+            )
+            for ev in results:
+                ev["evidence_type"] = "web"
+            return results
+        except Exception as e:
+            print(f"  Web retrieval failed: {e}")
+            return []
+
+    # Fire both concurrently; poll every 0.3 s so sources stream in as they arrive
+    _pool = ThreadPoolExecutor(max_workers=2)
+    _fut_db  = _pool.submit(_db)
+    _fut_web = _pool.submit(_web)
+
+    yield {"type": "status", "message": "Searching government database…"}
+
+    db_formatted: list = []
+    web_evidence: list = []
+    db_done = web_done = False
+    web_divider_sent = False
+
+    _web_msgs = [
+        "Fetching article content…",
+        "Reading sources…",
+        "Cross-checking references…",
+        "Almost there…",
+    ]
+    tick = 0
+
+    while not (db_done and web_done):
+        await asyncio.sleep(0.3)
+        tick += 1
+
+        # Drain individual web sources — send each as its own event with a
+        # small gap so the browser renders them one by one
+        batch: list = []
+        while True:
             try:
-                results = m["web_retriever"].retrieve_hybrid_serper_decomposition(
-                    claim, num_results=15, results_per_query=8
-                )
-                for ev in results:
-                    ev["evidence_type"] = "web"
-                return results
-            except Exception as e:
-                print(f"  Web retrieval failed: {e}")
-                return []
+                batch.append(_source_q.get_nowait())
+            except _queue.Empty:
+                break
+        for slim in batch:
+            if not web_divider_sent:
+                web_divider_sent = True
+                yield {"type": "status", "message": "Searching the web for evidence…"}
+                yield {"type": "source_divider", "label": "Web sources — verifying…"}
+            yield {"type": "source", "source": slim}
+            await asyncio.sleep(0.12)  # 120 ms gap → genuine one-by-one appearance
 
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            fut_db  = ex.submit(_db)
-            fut_web = ex.submit(_web)
-            return fut_db.result(), fut_web.result()
+        if not db_done and _fut_db.done():
+            db_done = True
+            try:
+                db_formatted = _fut_db.result()
+            except Exception as exc:
+                print(f"  Database retrieval failed: {exc}")
+            if db_formatted:
+                yield {"type": "evidence", "sources": _slim_sources(db_formatted), "phase": "db"}
 
-    db_formatted, web_evidence = await loop.run_in_executor(None, _retrieval)
+        if not web_done and _fut_web.done():
+            web_done = True
+            try:
+                web_evidence = _fut_web.result()
+            except Exception as exc:
+                print(f"  Web retrieval failed: {exc}")
+            # Individual sources were already streamed via callback; no batch needed
+
+        # Rotate status message every ~6 s while content enrichment runs
+        if not web_done and tick % 20 == 0:
+            msg_idx = (tick // 20) % len(_web_msgs)
+            yield {"type": "status", "message": _web_msgs[msg_idx]}
+
+    _pool.shutdown(wait=False)
+
     all_evidence = db_formatted + web_evidence
 
     if not all_evidence:
