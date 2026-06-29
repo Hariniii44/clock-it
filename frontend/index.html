@@ -1130,8 +1130,8 @@
         <div class="examples-section" style="width:100%">
           <span class="examples-label">Try an example</span>
           <div class="example-chips">
-            <button class="example-chip" onclick="setExample('40,000 civilians were killed in Mullivaikkal')">40,000 civilians were killed in Mullivaikkal</button>
-            <button class="example-chip" onclick="setExample('The government reduced fuel prices by 20%')">The government reduced fuel prices by 20%</button>
+            <!-- <button class="example-chip" onclick="setExample('40,000 civilians were killed in Mullivaikkal')">40,000 civilians were killed in Mullivaikkal</button> -->
+            <button class="example-chip" onclick="setExample('Sri Lanka\'s revenue is higher than the expenditure in the first quarter of 2026')">Sri Lanka's revenue is higher than the expenditure in the first quarter of 2026</button>
             <button class="example-chip" onclick="setExample('Sri Lanka has the highest literacy rate in South Asia')">Sri Lanka has the highest literacy rate in South Asia</button>
           </div>
         </div>
@@ -1237,7 +1237,7 @@
 
       <!-- AI Explanation (always visible, streams in) -->
       <div class="explanation-section">
-        <div class="explanation-section-title">AI Explanation</div>
+        <div class="explanation-section-title">Explanation</div>
         <div id="explanation-body"></div>
       </div>
 
@@ -1353,8 +1353,8 @@
        JAVASCRIPT
        ===================================================================== -->
   <script>
-    const API_BASE = 'http://localhost:8000';
-    // const API_BASE = 'https://verifylk-api-604936778695.us-central1.run.app';
+    // const API_BASE = 'http://localhost:8000';
+    const API_BASE = 'https://verifylk-api-604936778695.us-central1.run.app';
 
     let _lastClaim = '';
     let _allSources = [];
