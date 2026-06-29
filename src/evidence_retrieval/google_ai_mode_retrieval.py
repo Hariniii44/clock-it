@@ -264,7 +264,7 @@ class GoogleAIModeRetriever:
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Referer': 'https://www.google.com/',
             }
-            resp = requests.get(amp_url, headers=headers, timeout=6)
+            resp = requests.get(amp_url, headers=headers, timeout=3)
             if resp.status_code == 200 and len(resp.text) > 500:
                 text = _extract(resp.text)
                 if text and len(text) > 200:
@@ -274,7 +274,7 @@ class GoogleAIModeRetriever:
 
         # --- Strategy 2: requests with browser headers (bypasses basic bot detection) ---
         try:
-            resp = requests.get(url, headers=headers, timeout=6)
+            resp = requests.get(url, headers=headers, timeout=3)
             if resp.status_code == 200:
                 text = _extract(resp.text)
                 if text and len(text) > 200:
@@ -297,7 +297,7 @@ class GoogleAIModeRetriever:
             jina_resp = requests.get(
                 f'https://r.jina.ai/{url}',
                 headers={'Accept': 'text/plain', 'User-Agent': 'Mozilla/5.0'},
-                timeout=10,
+                timeout=5,
             )
             if jina_resp.status_code == 200 and len(jina_resp.text) > 200:
                 print(f"  jina: content fetched for {url}")
@@ -327,10 +327,10 @@ class GoogleAIModeRetriever:
             key = self._clean_url(ref['link'])
             seen_urls.setdefault(key, []).append(ref)
 
-        # URLs with a substantial SerpAPI snippet (>150 chars) already give NLI
+        # URLs with a substantial SerpAPI snippet (>250 chars) already give NLI
         # enough to work with — skip full-content fetch for these.
-        # Only fetch for URLs with short/missing snippets where content matters.
-        SKIP_FETCH_SNIPPET_LEN = 150
+        # Google AI Mode snippets are typically 200-400 chars, so most are skipped.
+        SKIP_FETCH_SNIPPET_LEN = 250
         news_urls_all = [u for u in seen_urls if not self._is_social_media(u)]
         social_urls   = [u for u in seen_urls if self._is_social_media(u)]
 
@@ -353,7 +353,7 @@ class GoogleAIModeRetriever:
                 for url in news_urls_fetch
             }
             try:
-                for future in as_completed(future_to_url, timeout=40):
+                for future in as_completed(future_to_url, timeout=15):
                     url = future_to_url[future]
                     try:
                         results[url] = future.result()
@@ -658,13 +658,17 @@ class GoogleAIModeRetriever:
     # ------------------------------------------------------------------
 
     def retrieve_google_ai_mode(
-        self, claim: str, num_results: int = 20
+        self, claim: str, num_results: int = 20, source_callback=None
     ) -> List[Dict]:
         """
         Retrieve evidence using a single Google AI Mode query.
 
         Stores Google's synthesis on the first result as `google_synthesis`
         so the pipeline can surface it alongside the verdict.
+
+        source_callback: optional callable(slim_ref) fired for each reference
+        immediately after the Serper API returns — before content enrichment.
+        Callers can use this to stream sources to the UI while enrichment runs.
         """
         print(f"\n  Querying Google AI Mode...")
         result = self._google_ai_mode_query(claim)
@@ -684,6 +688,19 @@ class GoogleAIModeRetriever:
 
         # Sort by source priority (official > fact-checkers > news > unknown)
         references.sort(key=lambda r: self._get_source_priority(r['link']), reverse=True)
+
+        # Fire callback immediately — before enrichment (~1-2 s after API call).
+        # This lets callers stream each source to the UI while enrichment runs.
+        if source_callback:
+            for ref in references[:num_results]:
+                source_callback({
+                    "title":         ref.get("title", ""),
+                    "link":          ref.get("link", ""),
+                    "source":        ref.get("source", "") or urlparse(ref.get("link", "")).netloc,
+                    "evidence_type": "web",
+                    "snippet":       (ref.get("snippet", "") or "")[:300],
+                    "date":          ref.get("date", "") or ref.get("date_raw", ""),
+                })
 
         # Fetch full article content with hybrid relevance check
         references = self._enrich_with_full_content(references[:num_results], claim=claim)
@@ -712,7 +729,8 @@ class GoogleAIModeRetriever:
     # ------------------------------------------------------------------
 
     def retrieve_hybrid_serper_decomposition(
-        self, claim: str, num_results: int = 20, results_per_query: int = 8
+        self, claim: str, num_results: int = 20, results_per_query: int = 8,
+        source_callback=None
     ) -> List[Dict]:
         """
         Pipeline-compatible alias.  Google AI Mode doesn't need query
@@ -720,7 +738,8 @@ class GoogleAIModeRetriever:
         The num_results / results_per_query params are accepted for
         compatibility but only num_results is used as an upper bound.
         """
-        return self.retrieve_google_ai_mode(claim, num_results=num_results)
+        return self.retrieve_google_ai_mode(claim, num_results=num_results,
+                                            source_callback=source_callback)
 
     def retrieve_evidence_dataset_first(
         self, claim: str, num_results: int = 20

@@ -4,19 +4,33 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VerifyLK — Bias-Aware Fact Checking</title>
-
-  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <style>
-    /* =====================================================================
-       RESET & BASE
-       ===================================================================== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Light mode is the default */
     :root {
+      --bg: #fafaf7;
+      --surface: #f0f0eb;
+      --surface2: #e8e8e2;
+      --border: #d0d0c6;
+      --accent: #7aaa00;
+      --accent2: #e85520;
+      --text: #1a1a14;
+      --muted: #6a6a60;
+      --nav-bg: rgba(250,250,247,0.92);
+      --red:    #dc2626;
+      --orange: #d97706;
+      --green:  #7aaa00;
+      --serif: 'DM Serif Display', Georgia, serif;
+      --mono:  'DM Mono', monospace;
+      --sans:  'Instrument Sans', sans-serif;
+    }
+
+    [data-theme="dark"] {
       --bg: #0a0a08;
       --surface: #111110;
       --surface2: #1a1a18;
@@ -25,30 +39,13 @@
       --accent2: #ff6b35;
       --text: #f0ede6;
       --muted: #7a7a70;
-      --serif: 'DM Serif Display', Georgia, serif;
-      --mono: 'DM Mono', monospace;
-      --sans: 'Instrument Sans', sans-serif;
-      --nav-bg: rgba(10, 10, 8, 0.85);
-      /* legacy aliases kept for compatibility */
+      --nav-bg: rgba(10,10,8,0.85);
       --red:    #ff6b6b;
       --orange: #ffb347;
       --green:  #d4ff4e;
     }
 
-    [data-theme="light"] {
-      --bg: #fafaf7;
-      --surface: #f0f0eb;
-      --surface2: #e8e8e2;
-      --border: #d0d0c6;
-      --accent: #7aaa00;
-      --accent2: #e85520;
-      --text: #1a1a14;
-      --muted: #5a5a50;
-      --nav-bg: rgba(250, 250, 247, 0.9);
-    }
-
     html { scroll-behavior: smooth; }
-
     body {
       background: var(--bg);
       color: var(--text);
@@ -57,22 +54,14 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
-
     a { color: inherit; text-decoration: none; }
     button { cursor: pointer; font-family: inherit; border: none; outline: none; }
-    textarea { font-family: var(--sans); resize: vertical; }
 
     /* =====================================================================
        TYPOGRAPHY UTILITIES
        ===================================================================== */
-    .mono        { font-family: var(--mono); }
-    .serif       { font-family: var(--serif); }
-    .upper       { text-transform: uppercase; letter-spacing: .08em; }
-    .muted       { color: var(--muted); }
-    .lime        { color: var(--accent); }
-    .red-c       { color: var(--red); }
-    .orange-c    { color: var(--orange); }
-
+    .mono     { font-family: var(--mono); }
+    .muted    { color: var(--muted); }
     .label-xs {
       font-family: var(--mono);
       font-size: 10px;
@@ -82,54 +71,37 @@
     }
 
     /* =====================================================================
-       STICKY NAVBAR
+       NAVBAR
        ===================================================================== */
     #navbar {
       position: sticky;
       top: 0;
-      z-index: 1000;
+      z-index: 100;
       background: var(--nav-bg);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
       padding: 0 48px;
-      height: 64px;
+      height: 60px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
     .nav-logo {
       font-family: var(--serif);
-      font-size: 1.5rem;
-      color: var(--accent);
-      text-decoration: none;
+      font-size: 1.4rem;
+      color: var(--text);
       letter-spacing: -0.02em;
     }
-    .nav-links {
-      display: none !important;
-      display: flex;
-      align-items: center;
-      gap: 32px;
-      list-style: none;
-    }
-    .nav-links a {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      transition: color .2s;
-    }
-    .nav-links a:hover { color: var(--text); }
+    .nav-logo span { color: var(--accent); }
     .btn-nav {
       background: none;
       border: 1px solid var(--border);
-      border-radius: 2px;
+      border-radius: 6px;
       color: var(--muted);
-      cursor: pointer;
       font-family: var(--mono);
       font-size: 0.72rem;
       letter-spacing: 0.08em;
-      padding: 0.4rem 0.7rem;
+      padding: 0.4rem 0.8rem;
       text-transform: uppercase;
       transition: color .2s, border-color .2s;
       display: flex;
@@ -139,108 +111,71 @@
     .btn-nav:hover { color: var(--text); border-color: var(--muted); }
 
     /* =====================================================================
-       HERO — Google-style centered layout
+       HERO — input + loading states
        ===================================================================== */
     #hero {
-      min-height: calc(100vh - 64px);
+      min-height: calc(100vh - 60px);
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--bg);
-      padding: 48px 24px;
+      padding: 64px 24px;
     }
 
-    .hero-center {
+    .hero-inner {
       width: 100%;
-      max-width: 680px;
+      max-width: 600px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 40px;
+      gap: 0;
     }
 
-    .brand { text-align: center; }
+    /* =====================================================================
+       INPUT STATE — landing page
+       ===================================================================== */
+    #input-state {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
 
-    .brand-name {
+    .landing-brand { text-align: center; }
+
+    .landing-title {
       font-family: var(--serif);
-      font-size: clamp(52px, 7vw, 80px);
-      font-weight: 800;
+      font-size: clamp(36px, 6vw, 56px);
+      font-weight: 400;
+      line-height: 1.1;
       color: var(--text);
-      line-height: 1;
-      margin-bottom: 14px;
+      margin-bottom: 16px;
     }
 
-    .brand-dot { color: var(--accent); }
-
-    .brand-tagline {
-      font-size: 16px;
+    .landing-sub {
+      font-size: 15px;
       color: var(--muted);
-      line-height: 1.6;
+      line-height: 1.65;
+      max-width: 500px;
+      margin: 0 auto;
     }
 
-    #verification-panel { width: 100%; }
-
-    .panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .panel-header-label {
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .15em;
-      color: var(--muted);
-    }
-
-    .panel-status {
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      color: var(--green);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .panel-status .dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--green);
-      animation: pulse-dot 2s ease-in-out infinite;
-    }
-    @keyframes pulse-dot {
-      0%,100% { opacity: 1; }
-      50%      { opacity: .3; }
-    }
-
-    /* Search wrap */
-    .search-wrap {
-      display: flex;
-      align-items: center;
+    .search-card {
+      width: 100%;
       background: var(--surface);
-      border: 2px solid var(--border);
-      border-radius: 32px;
-      padding: 8px 8px 8px 22px;
-      box-shadow: 0 2px 12px rgba(0,0,0,.06);
-      transition: border-color .2s, box-shadow .2s;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.06);
+    }
+
+    .search-card-row {
+      display: flex;
+      align-items: center;
       gap: 10px;
-    }
-    .search-wrap:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 2px 20px rgba(212,255,78,.12);
-    }
-
-
-    .search-icon {
-      color: var(--muted);
-      font-size: 18px;
-      flex-shrink: 0;
-      line-height: 1;
     }
 
     #claim-input {
@@ -252,14 +187,24 @@
       color: var(--text);
       font-family: var(--sans);
       line-height: 1.5;
+      padding: 4px 0;
+      min-width: 0;
     }
     #claim-input::placeholder { color: var(--muted); }
 
+    .search-input-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+    }
+
     .btn-verify {
-      background: var(--accent);
+      background: var(--text);
       color: var(--bg);
-      padding: 10px 24px;
-      border-radius: 24px;
+      padding: 11px 22px;
+      border-radius: 10px;
       font-family: var(--sans);
       font-size: 14px;
       font-weight: 600;
@@ -268,182 +213,167 @@
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .btn-verify:hover { opacity: .85; }
+    .btn-verify:hover { opacity: .82; }
 
-    .input-hint {
-      margin-top: 8px;
+    #error-container { width: 100%; }
+    .error-msg {
+      background: rgba(220,38,38,.06);
+      border: 1px solid rgba(220,38,38,.2);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: var(--mono);
       font-size: 11px;
-      color: var(--muted);
-      text-align: center;
+      color: var(--red);
+      text-transform: uppercase;
+      letter-spacing: .1em;
     }
 
-    /* Loading state */
-    #loading-state {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 0;
-    }
-
-    .spinner {
-      width: 44px; height: 44px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-      margin-bottom: 28px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    #loading-msg {
-      font-size: 13px;
-      color: var(--muted);
-      min-height: 20px;
-      transition: opacity .3s;
-    }
-
-    /* Results state */
-    #results-state { display: none; }
-
-    .result-claim {
-      font-size: .82rem;
-      color: var(--muted);
-      font-style: italic;
-      border-left: 3px solid var(--accent);
-      background: rgba(212,255,78,.08);
-      border-radius: 0 4px 4px 0;
-      padding: 6px 10px;
-      margin-bottom: 14px;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-
-    .result-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 11px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .result-row:last-of-type { border-bottom: none; }
-    .result-row-label {
+    .examples-section { width: 100%; }
+    .examples-label {
       font-family: var(--mono);
       font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: .13em;
+      letter-spacing: .14em;
       color: var(--muted);
+      display: block;
+      margin-bottom: 10px;
     }
-    .result-row-value {
-      font-family: var(--mono);
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .example-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .example-chip:hover {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+
+    .landing-features {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .landing-features span {
       font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .landing-features span::before {
+      content: '·';
+      color: var(--accent);
       font-weight: 700;
     }
 
-    /* 6-label verdict system: 5 on scale + UNCERTAIN (off-scale) */
-    .verdict-VERIFIED       { color: #d4ff4e; }
-    .verdict-MOSTLY_TRUE    { color: #a8e063; }
-    .verdict-PARTIALLY_TRUE { color: #ffb347; }
-    .verdict-MOSTLY_FALSE   { color: #ff7850; }
-    .verdict-REFUTED        { color: #ff6b6b; }
-    .verdict-UNCERTAIN      { color: var(--muted); }
-    .verdict-PRELIMINARY    { color: #ffb347; }
-    /* Legacy aliases kept for individual source badges */
-    .verdict-SUPPORTED      { color: #d4ff4e; }
-    .verdict-CONFLICTING    { color: #ffb347; }
-
-    /* Light-mode overrides — lime (#d4ff4e) is invisible on white */
-    [data-theme="light"] .verdict-VERIFIED,
-    [data-theme="light"] .verdict-SUPPORTED      { color: #4d7a00; }
-    [data-theme="light"] .verdict-MOSTLY_TRUE    { color: #3a6010; }
-    [data-theme="light"] .verdict-PARTIALLY_TRUE { color: #b45309; }
-    [data-theme="light"] .verdict-MOSTLY_FALSE   { color: #c2410c; }
-    [data-theme="light"] .verdict-REFUTED        { color: #b91c1c; }
-    [data-theme="light"] .verdict-CONFLICTING    { color: #b45309; }
-    [data-theme="light"] .badge-SUPPORTED { background: rgba(77,122,0,.1); color: #4d7a00; border-color: rgba(77,122,0,.25); }
-    [data-theme="light"] .badge-REFUTED   { background: rgba(185,28,28,.1); color: #b91c1c; border-color: rgba(185,28,28,.25); }
-
-    /* Verdict scale bar */
-    .verdict-scale {
-      display: flex;
-      gap: 3px;
-      margin-top: 6px;
-      margin-bottom: 2px;
-      height: 5px;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .verdict-scale-seg {
-      flex: 1;
-      border-radius: 2px;
-      opacity: 0.35;
-      transition: opacity .2s;
-    }
-    .verdict-scale-seg.active { opacity: 1.0; }
-    .verdict-sublabel {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    /* Progress bars */
-    .bar-block { margin-top: 20px; }
-    .bar-label-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .bar-track {
+    /* =====================================================================
+       LOADING STATE — step list
+       ===================================================================== */
+    #loading-state {
       width: 100%;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      overflow: hidden;
-      margin-bottom: 14px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 8px 0;
     }
-    .bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      transition: width .6s cubic-bezier(.4,0,.2,1);
-    }
-    .bar-lime   { background: var(--accent); }
-    .bar-orange { background: var(--orange); }
 
-    .btn-reset {
-      margin-top: 24px;
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .12em;
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin-bottom: 24px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-heading {
+      font-family: var(--sans);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    #loading-claim-display {
+      font-size: 13px;
       color: var(--muted);
-      background: transparent;
-      border: 1px solid var(--border);
-      padding: 10px 20px;
-      border-radius: 6px;
-      transition: color .2s, border-color .2s;
+      font-style: italic;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+
+    .step-list {
+      list-style: none;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    .step {
+      font-size: 13px;
+      color: var(--border);
+      font-family: var(--sans);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: color .3s;
+    }
+    .step::before {
+      content: '›';
+      font-size: 16px;
+      color: var(--border);
+      transition: color .3s;
+      flex-shrink: 0;
+    }
+    .step.step-active {
+      color: var(--muted);
+    }
+    .step.step-active::before { color: var(--accent); }
+    .step.step-done {
+      color: var(--muted);
+      opacity: 0.7;
+    }
+    .step.step-done::before { color: var(--accent); }
+
+    #live-sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
       width: 100%;
     }
-    .btn-reset:hover { color: var(--accent); border-color: var(--accent); }
 
     /* =====================================================================
-       TEMPORAL WARNING BANNER
+       TEMPORAL BANNER
        ===================================================================== */
     #temporal-banner {
       display: none;
       background: rgba(217,119,6,.06);
       border-top: 1px solid rgba(217,119,6,.2);
       border-bottom: 1px solid rgba(217,119,6,.2);
-      padding: 16px 48px;
+      padding: 14px 48px;
     }
     .temporal-inner {
-      max-width: 1200px;
+      max-width: 1100px;
       margin: 0 auto;
       display: flex;
       align-items: flex-start;
-      gap: 14px;
+      gap: 12px;
     }
     .temporal-badge {
       font-family: var(--mono);
@@ -462,128 +392,443 @@
     }
 
     /* =====================================================================
-       DETAILS SECTION
+       RESULTS PAGE — full-width layout
        ===================================================================== */
-    #details-section {
-      display: none;
-      border-top: 1px solid var(--border);
-      padding: 64px 48px;
-      background: var(--bg);
-    }
+    #results-page { display: none; min-height: 100vh; }
 
-    .details-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    .section-header {
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .18em;
-      color: var(--muted);
-      padding-bottom: 20px;
+    /* Top bar */
+    .results-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--nav-bg);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
-      margin-bottom: 32px;
-    }
-
-    /* Accordion */
-    .accordion { margin-bottom: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-
-    .accordion-header {
-      width: 100%;
+      padding: 0 40px;
+      height: 56px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 18px 24px;
+      gap: 20px;
+    }
+
+    .btn-new-claim {
       background: var(--surface);
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .12em;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-family: var(--sans);
+      font-size: 13px;
       color: var(--text);
-      transition: background .2s;
-      border: none;
-      border-radius: 8px;
-    }
-    .accordion-header:hover { background: var(--surface2); }
-
-    .accordion-header .badge {
-      background: var(--surface2);
-      color: var(--muted);
-      border: 1px solid var(--border);
-      font-size: 9px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      margin-left: 10px;
-    }
-
-    .accordion-chevron {
-      font-size: 16px;
-      transition: transform .25s;
-      color: var(--muted);
-    }
-    .accordion.open .accordion-chevron { transform: rotate(180deg); }
-
-    .accordion-body {
-      display: none;
-      padding: 24px;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-      border-radius: 0 0 8px 8px;
-    }
-    .accordion.open .accordion-body { display: block; }
-
-    /* =====================================================================
-       EVIDENCE CARDS
-       ===================================================================== */
-    #evidence-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 14px;
-    }
-
-    .ev-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .ev-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(212,255,78,.08); }
-
-    .ev-card.ev-excluded {
-      opacity: 0.45;
-      border-style: dashed;
-      pointer-events: auto;
-    }
-    .ev-card.ev-excluded:hover { border-color: var(--border); box-shadow: none; opacity: 0.6; }
-    .ev-excluded-badge {
-      font-family: var(--mono);
-      font-size: 8px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      padding: 2px 6px;
-      border-radius: 3px;
-      background: var(--surface-raised, #2a2a2a);
-      color: var(--muted);
-      border: 1px solid var(--border);
+      transition: border-color .2s;
       white-space: nowrap;
+      flex-shrink: 0;
     }
-    .ev-excluded-reason {
-      font-size: 10px;
-      color: var(--muted);
-      margin-top: 4px;
-      font-style: italic;
-    }
-    .ev-excluded-divider {
-      grid-column: 1 / -1;
+    .btn-new-claim:hover { border-color: var(--muted); }
+
+    .topbar-claim {
+      flex: 1;
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-top: 4px;
+      min-width: 0;
+    }
+    .topbar-claim-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #results-claim-header {
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Results body */
+    .results-body {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 40px 80px;
+    }
+
+    /* 2-column summary */
+    .results-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    /* Verdict card — always dark */
+    .verdict-card-large {
+      background: #111110;
+      border-radius: 16px;
+      padding: 32px;
+      color: #f0ede6;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    [data-theme="dark"] .verdict-card-large { background: #0a0a08; border: 1px solid #2a2a26; }
+
+    .verdict-card-eyebrow {
+      font-family: var(--mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      color: #7a7a70;
+      margin-bottom: 12px;
+    }
+    .verdict-main-label {
+      font-family: var(--sans);
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .verdict-main-sub {
+      font-size: 14px;
+      color: #7a7a70;
+      margin-bottom: 20px;
+    }
+    .verdict-scale {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      height: 6px;
+    }
+    .verdict-scale-seg {
+      flex: 1;
+      border-radius: 3px;
+      opacity: 0.25;
+      transition: opacity .2s;
+    }
+    .verdict-scale-seg.active { opacity: 1; }
+
+    .verdict-conf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .verdict-conf-label {
+      font-size: 13px;
+      color: #7a7a70;
+    }
+    .verdict-conf-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #f0ede6;
+    }
+    .verdict-conf-track {
+      position: relative;
+      height: 3px;
+      background: rgba(255,255,255,.1);
+      border-radius: 2px;
+      overflow: visible;
+      margin-bottom: 8px;
+    }
+    .verdict-conf-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: #d4ff4e;
+      transition: width .6s cubic-bezier(.4,0,.2,1);
+    }
+    .verdict-threshold-line {
+      position: absolute;
+      top: -5px;
+      width: 1px;
+      height: 13px;
+      background: rgba(255,255,255,.25);
+      left: 60%;
+    }
+    .verdict-conf-note {
+      font-size: 11px;
+      color: #5a5a50;
+      margin-top: 2px;
+    }
+
+    /* Stats grid (2×2) */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 20px;
+    }
+    .stat-val {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .stat-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* =====================================================================
+       AI EXPLANATION SECTION
+       ===================================================================== */
+    .explanation-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+    .explanation-section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .explanation-section-title::before {
+      content: '';
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    #explanation-body {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+    #explanation-body h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--accent);
+      margin: 18px 0 6px;
+    }
+    #explanation-body h3:first-child { margin-top: 0; }
+    #explanation-body strong { color: var(--text); font-weight: 600; }
+    #explanation-body em { font-style: italic; }
+    #explanation-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    #explanation-body p { margin-bottom: 10px; }
+
+    /* =====================================================================
+       TABS
+       ===================================================================== */
+
+    .tab-nav {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 12px 20px;
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .2s, border-color .2s;
+      margin-bottom: -1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--text);
+      border-bottom-color: var(--text);
+    }
+    .tab-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .tab-btn.active .tab-count { color: var(--text); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* =====================================================================
+       SOURCE FILTER PILLS
+       ===================================================================== */
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .filter-pill:hover { border-color: var(--muted); color: var(--text); }
+    .filter-pill.active {
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--bg);
+    }
+    .filter-pill .pill-count {
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    /* =====================================================================
+       SOURCE ROWS (new list layout)
+       ===================================================================== */
+    .source-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+    .source-row:last-child { border-bottom: none; }
+    .source-row:hover { background: var(--surface); margin: 0 -16px; padding: 18px 16px; border-radius: 8px; border-bottom: none; }
+    .source-row-main { flex: 1; min-width: 0; }
+    .source-row-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      flex-wrap: wrap;
+    }
+    .source-verdict-pill {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .source-domain {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+    }
+    .source-date {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .source-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+    .source-title a { color: var(--text); transition: color .15s; }
+    .source-title a:hover { color: var(--accent); }
+    .source-snippet {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .source-weight {
+      flex-shrink: 0;
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      min-width: 60px;
+    }
+    .source-weight-val {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    .source-weight-label {
+      font-family: var(--mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .source-row.source-excluded {
+      opacity: 0.5;
+    }
+    .source-row-detail {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .source-row.expanded .source-row-detail { display: block; }
+    .source-meta-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .source-meta-item {
+      font-family: var(--mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+    }
+    .source-meta-item span { color: var(--text); }
+    .source-reason {
+      font-size: 12px;
+      font-style: italic;
+      color: var(--muted);
+      margin-top: 8px;
+      padding-left: 10px;
+      border-left: 2px solid currentColor;
+    }
+    .wexp-body {
+      margin-top: 8px;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+    .wexp-line:first-child { color: var(--text); font-weight: 600; }
+    .ev-excluded-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0 8px;
       color: var(--muted);
       font-size: 10px;
       font-family: var(--mono);
@@ -597,118 +842,84 @@
       background: var(--border);
     }
 
+    /* Verdict badge colors used in source rows */
+    .badge-SUPPORTED { background: rgba(116,170,0,.12); color: #4d7a00; border: 1px solid rgba(116,170,0,.3); }
+    .badge-REFUTED   { background: rgba(185,28,28,.1);  color: #b91c1c; border: 1px solid rgba(185,28,28,.3); }
+    .badge-NEUTRAL   { background: rgba(90,90,80,.1);   color: var(--muted); border: 1px solid var(--border); }
+    .badge-error     { background: rgba(90,90,80,.08);  color: var(--muted); border: 1px solid var(--border); }
+    [data-theme="dark"] .badge-SUPPORTED { background: rgba(212,255,78,.15); color: #d4ff4e; border-color: rgba(212,255,78,.3); }
+    [data-theme="dark"] .badge-REFUTED   { background: rgba(255,107,107,.15); color: #ff6b6b; border-color: rgba(255,107,107,.3); }
+
+    /* Verdict colors for large label */
+    .verdict-VERIFIED       { color: #4caf50; }
+    .verdict-MOSTLY_TRUE    { color: #8bc34a; }
+    .verdict-PARTIALLY_TRUE { color: #ff9800; }
+    .verdict-MOSTLY_FALSE   { color: #ff5722; }
+    .verdict-REFUTED        { color: #f44336; }
+    .verdict-UNCERTAIN      { color: #888888; }
+    .verdict-PRELIMINARY    { color: #ff9800; }
+    .verdict-SUPPORTED      { color: #4caf50; }
+    .verdict-CONFLICTING    { color: #ff9800; }
+
+    /* =====================================================================
+       PENDING CARDS (loading state source previews)
+       ===================================================================== */
+    .ev-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
     .ev-card-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
-
     .ev-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       color: var(--text);
       line-height: 1.4;
       flex: 1;
     }
-    .ev-title a { color: var(--text); transition: color .2s; }
-    .ev-title a:hover { color: var(--accent); }
-
+    .ev-title a { color: var(--text); }
+    .ev-source {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--accent);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ev-date { color: var(--muted); font-size: 9px; }
+    .ev-snippet {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
     .verdict-badge {
       font-family: var(--mono);
       font-size: 8px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .1em;
-      padding: 3px 7px;
-      border-radius: 4px;
+      padding: 2px 6px;
+      border-radius: 3px;
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .badge-SUPPORTED { background: rgba(212,255,78,.15); color: #d4ff4e; border: 1px solid rgba(212,255,78,.3); }
-    .badge-REFUTED   { background: rgba(255,107,107,.15); color: #ff6b6b; border: 1px solid rgba(255,107,107,.3); }
-    .badge-NEUTRAL   { background: rgba(122,122,112,.15); color: var(--muted); border: 1px solid var(--border); }
-    .badge-error     { background: rgba(122,122,112,.1); color: var(--muted); }
-
-    .ev-source {
-      font-family: var(--mono);
-      font-size: 9px;
-      color: var(--accent);
-      opacity: 1;
-      margin-bottom: 10px;
-      text-transform: lowercase;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .badge-pending { background: transparent; color: var(--muted); border: 1px solid var(--border); letter-spacing: .2em; }
+    @keyframes ev-enter      { from { opacity: 0; transform: translateY(10px); } to { opacity: 0.55; transform: translateY(0); } }
+    @keyframes pending-pulse { 0%,100% { opacity: .55; } 50% { opacity: .3; } }
+    .ev-card.ev-pending {
+      animation: ev-enter .28s ease forwards, pending-pulse 1.8s ease-in-out .28s infinite;
     }
-    .ev-date {
-      color: var(--muted);
-      font-size: 9px;
-      opacity: .8;
-    }
-
-    .ev-snippet {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.6;
-      margin-bottom: 10px;
-      border-left: 2px solid var(--border);
-      padding-left: 10px;
-    }
-
-    .ev-reason {
-      font-size: 11px;
-      font-style: italic;
-      opacity: 0.75;
-      margin-bottom: 8px;
-      padding-left: 10px;
-      border-left: 2px solid currentColor;
-    }
-
-    .ev-meta {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-    .ev-meta-item {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--muted);
-    }
-    .ev-meta-item span { color: var(--text); }
-
-    .wexp-details {
-      margin-top: 8px;
-      border-top: 1px solid var(--border);
-      padding-top: 6px;
-    }
-    .wexp-details summary {
-      font-size: 10px;
-      font-family: var(--mono);
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: var(--muted);
-      cursor: pointer;
-      user-select: none;
-    }
-    .wexp-details summary:hover { color: var(--text); }
-    .wexp-body {
-      margin-top: 6px;
-      padding: 8px 10px;
-      background: var(--surface2);
-      border-radius: 6px;
-      font-family: var(--mono);
-      font-size: 10px;
-      line-height: 1.7;
-      color: var(--muted);
-    }
-    .wexp-line:first-child { color: var(--text); font-weight: 600; }
 
     /* =====================================================================
-       BIAS ANALYSIS
+       BIAS ANALYSIS (tab content)
        ===================================================================== */
     .bias-grid {
       display: grid;
@@ -716,10 +927,9 @@
       gap: 2px;
       margin-bottom: 20px;
     }
-
     .bias-cell {
       background: var(--surface2);
-      padding: 20px 16px;
+      padding: 18px 14px;
       border: 1px solid var(--border);
     }
     .bias-cell-label {
@@ -728,7 +938,7 @@
       text-transform: uppercase;
       letter-spacing: .13em;
       color: var(--muted);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .bias-cell-value {
       font-family: var(--mono);
@@ -738,13 +948,11 @@
       text-transform: capitalize;
       margin-bottom: 4px;
     }
-
     .tone-bar {
-      width: 100%;
-      height: 3px;
+      width: 100%; height: 3px;
       background: var(--border);
       border-radius: 2px;
-      margin-top: 8px;
+      margin-top: 6px;
       position: relative;
     }
     .tone-indicator {
@@ -756,493 +964,204 @@
       transform: translateX(-50%);
       transition: left .4s;
     }
-
-    .bias-explanation {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.65;
-      margin-bottom: 16px;
-    }
-
+    .bias-explanation { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 16px; }
     .divergence-display {
       display: inline-flex;
       align-items: center;
       gap: 10px;
       border: 1px solid var(--border);
-      padding: 8px 16px;
+      padding: 8px 14px;
       border-radius: 6px;
+      margin-bottom: 20px;
     }
-    .divergence-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      color: var(--muted);
-    }
-    .divergence-value {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-
-    .bias-sources-header {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
+    .divergence-label { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+    .divergence-value { font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--accent); }
+    .bias-sources-header { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 10px; }
     .bias-source-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--orange);
-      border-radius: 4px;
-      padding: 14px 16px;
-      margin-bottom: 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-left: 3px solid var(--orange); border-radius: 4px;
+      padding: 14px 16px; margin-bottom: 10px;
     }
-    /* Informational card — pattern detected but not penalised */
-    .bias-source-card-info {
-      border-left-color: rgba(200,100,200,.5);
-      opacity: 0.9;
-    }
+    .bias-source-card-info { border-left-color: rgba(200,100,200,.5); opacity: 0.9; }
     .bias-sl-patterns-section { margin-top: 4px; }
     .bias-sl-patterns-note {
-      font-family: var(--mono);
-      font-size: 8px;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
-      margin-left: 8px;
+      font-family: var(--mono); font-size: 8px; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-left: 8px;
     }
-    .bias-sl-info-note {
-      font-size: 10px;
-      color: var(--muted);
-      margin-top: 8px;
-      font-style: italic;
-    }
+    .bias-sl-info-note { font-size: 10px; color: var(--muted); margin-top: 8px; font-style: italic; }
     .bias-source-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 8px;
-      margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;
     }
-    .bias-source-name {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--accent);
-    }
+    .bias-source-name { font-family: var(--mono); font-size: 11px; color: var(--accent); }
     .bias-source-tags { display: flex; gap: 5px; flex-wrap: wrap; }
     .bias-tag {
-      font-family: var(--mono);
-      font-size: 8px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      padding: 2px 6px;
-      border: 1px solid var(--border);
-      border-radius: 2px;
-      color: var(--orange);
+      font-family: var(--mono); font-size: 8px; text-transform: uppercase;
+      letter-spacing: .08em; padding: 2px 6px; border: 1px solid var(--border);
+      border-radius: 2px; color: var(--orange);
     }
     .bias-tag-srctype { color: #7ab8f5; border-color: #7ab8f5; }
     .bias-sl-flags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
     .bias-sl-flag {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      padding: 2px 7px;
-      border-radius: 2px;
-      font-weight: 600;
+      font-family: var(--mono); font-size: 9px; text-transform: uppercase;
+      letter-spacing: .06em; padding: 2px 7px; border-radius: 2px; font-weight: 600;
     }
-    .bias-sl-gender  { background: rgba(200,100,200,.15); color: #c864c8; border: 1px solid #c864c8; }
-    .bias-sl-ethnic  { background: rgba(255,80,80,.12);  color: #e05050; border: 1px solid #e05050; }
-    .bias-sl-trauma  { background: rgba(150,150,150,.15); color: #999;   border: 1px solid #888;   }
+    .bias-sl-gender { background: rgba(200,100,200,.15); color: #c864c8; border: 1px solid #c864c8; }
+    .bias-sl-ethnic { background: rgba(255,80,80,.12);  color: #e05050; border: 1px solid #e05050; }
+    .bias-sl-trauma { background: rgba(150,150,150,.15); color: #999;   border: 1px solid #888; }
     .bias-clean-msg {
-      font-size: 12px;
-      color: var(--muted);
-      padding: 12px 0 4px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      font-size: 12px; color: var(--muted); padding: 12px 0 4px;
+      display: flex; flex-direction: column; gap: 10px;
     }
     .bias-clean-explain-btn {
-      align-self: flex-start;
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 11px;
-      padding: 5px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: border-color .2s, color .2s;
+      align-self: flex-start; background: none; border: 1px solid var(--border);
+      color: var(--muted); font-size: 11px; padding: 5px 10px; border-radius: 4px;
+      cursor: pointer; transition: border-color .2s, color .2s;
     }
     .bias-clean-explain-btn:hover { border-color: var(--accent); color: var(--accent); }
     .bias-phrases { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
     .bias-phrase {
-      font-size: 11px;
-      background: rgba(217,119,6,.08);
-      border: 1px solid rgba(217,119,6,.25);
-      border-radius: 2px;
-      padding: 2px 7px;
-      color: var(--orange);
+      font-size: 11px; background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25);
+      border-radius: 2px; padding: 2px 7px; color: var(--orange);
     }
-    .bias-source-expl {
-      font-size: 12.5px;
-      color: var(--text-primary);
-      line-height: 1.7;
-      margin-bottom: 12px;
-    }
-    .bias-why-section {
-      border-top: 1px solid var(--border);
-      padding-top: 10px;
-      margin-top: 10px;
-    }
-    .bias-why-label {
-      font-family: var(--mono);
-      font-size: 8px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .bias-dim-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 5px;
-      font-size: 11.5px;
-    }
-    .bias-dim-name {
-      font-family: var(--mono);
-      font-size: 9px;
-      color: var(--muted);
-      width: 80px;
-      flex-shrink: 0;
-    }
-    .bias-dim-bar-wrap {
-      flex: 1;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      overflow: hidden;
-    }
+    .bias-source-expl { font-size: 12.5px; color: var(--text); line-height: 1.7; margin-bottom: 12px; }
+    .bias-why-section { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+    .bias-why-label { font-family: var(--mono); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+    .bias-dim-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11.5px; }
+    .bias-dim-name { font-family: var(--mono); font-size: 9px; color: var(--muted); width: 80px; flex-shrink: 0; }
+    .bias-dim-bar-wrap { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
     .bias-dim-bar { height: 100%; border-radius: 2px; }
-    .bias-dim-value {
-      font-family: var(--mono);
-      font-size: 9px;
-      color: var(--muted);
-      width: 38px;
-      text-align: right;
-      flex-shrink: 0;
+    .bias-dim-value { font-family: var(--mono); font-size: 9px; color: var(--muted); width: 38px; text-align: right; flex-shrink: 0; }
+    .bias-dim-weight { font-family: var(--mono); font-size: 9px; color: var(--muted); width: 52px; text-align: right; flex-shrink: 0; }
+    .bias-profile-note { font-size: 11px; color: var(--muted); margin-top: 6px; padding: 5px 8px; background: var(--surface2); border-radius: 3px; border-left: 2px solid var(--border); }
+    .bias-penalty-row { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 10px; }
+    .bias-penalty-label { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .bias-penalty-value { font-family: var(--mono); font-size: 11px; color: var(--orange); }
+    .bias-pattern-block { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; padding: 12px 14px; margin-bottom: 10px; }
+    .bias-pattern-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 8px; }
+    .bias-pattern-quote { font-size: 11.5px; color: var(--muted); margin-bottom: 3px; padding-left: 10px; border-left: 2px solid var(--border); }
+    .bias-pattern-quote strong { color: var(--text); font-weight: 600; }
+    .bias-pattern-analysis { font-size: 12.5px; color: var(--text); line-height: 1.65; margin-top: 8px; }
+
+    .explain-btn {
+      background: transparent; border: 1px solid var(--accent); color: var(--accent);
+      padding: 9px 20px; font-family: var(--mono); font-size: .75rem; letter-spacing: .1em;
+      text-transform: uppercase; cursor: pointer; border-radius: 6px; transition: background .2s, color .2s;
     }
-    .bias-dim-weight {
-      font-family: var(--mono);
-      font-size: 9px;
-      color: var(--muted);
-      width: 52px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-    .bias-profile-note {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 6px;
-      padding: 5px 8px;
-      background: var(--surface2);
-      border-radius: 3px;
-      border-left: 2px solid var(--border);
-    }
-    .bias-penalty-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-      margin-top: 10px;
-    }
-    .bias-penalty-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
-    }
-    .bias-penalty-value {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--orange);
-    }
-    .bias-pattern-block {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--accent);
-      border-radius: 4px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
-    }
-    .bias-pattern-title {
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--accent);
-      margin-bottom: 8px;
-    }
-    .bias-pattern-quote {
-      font-size: 11.5px;
-      color: var(--muted);
-      margin-bottom: 3px;
-      padding-left: 10px;
-      border-left: 2px solid var(--border);
-    }
-    .bias-pattern-quote strong {
-      color: var(--text-primary);
-      font-weight: 600;
-    }
-    .bias-pattern-analysis {
-      font-size: 12.5px;
-      color: var(--text-primary);
-      line-height: 1.65;
-      margin-top: 8px;
-    }
+    .explain-btn:hover { background: var(--accent); color: var(--bg); }
+    .explain-btn:disabled { opacity: .45; cursor: not-allowed; }
 
     /* =====================================================================
-       UNCERTAINTY
+       UNCERTAINTY (tab content)
        ===================================================================== */
-    .uncertainty-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-    }
-
-    .unc-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 20px 16px;
-    }
-    .unc-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .13em;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-    .unc-value {
-      font-family: var(--mono);
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 10px;
-    }
-    .unc-bar-track {
-      width: 100%;
-      height: 3px;
-      background: var(--border);
-      border-radius: 2px;
-      overflow: hidden;
-      margin-bottom: 12px;
-    }
-    .unc-bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--accent);
-      transition: width .5s;
-    }
-    .unc-desc {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.55;
-    }
+    .uncertainty-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .unc-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 20px 16px; }
+    .unc-label { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .13em; color: var(--muted); margin-bottom: 10px; }
+    .unc-value { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+    .unc-bar-track { width: 100%; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 12px; }
+    .unc-bar-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width .5s; }
+    .unc-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
 
     /* =====================================================================
-       AI EXPLANATION
+       MISC
        ===================================================================== */
-    #explanation-body {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.75;
-    }
-    #explanation-body h3 {
-      font-family: var(--mono);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      color: var(--accent);
-      margin: 20px 0 8px;
-    }
-    #explanation-body h3:first-child { margin-top: 0; }
-    #explanation-body strong { color: var(--text); font-weight: 600; }
-    #explanation-body em { font-style: italic; color: var(--text); }
-    #explanation-body hr {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 20px 0;
-    }
-    #explanation-body p { margin-bottom: 12px; }
+    .hidden { display: none !important; }
+    @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
-    .no-explanation {
-      font-family: var(--mono);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--muted);
-      padding: 24px 0;
-    }
-
-    /* =====================================================================
-       RESPONSIVE
-       ===================================================================== */
-    @media (max-width: 900px) {
+    @media (max-width: 800px) {
       #navbar { padding: 0 20px; }
-      .nav-links { display: none; }
-      #hero { padding: 32px 20px; align-items: flex-start; padding-top: 64px; }
-      #details-section { padding: 32px 20px; }
-      #temporal-banner { padding: 14px 20px; }
+      #hero { padding: 40px 20px; }
+      .results-body { padding: 24px 20px 60px; }
+      .results-topbar { padding: 0 20px; }
+      .results-summary { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
       .bias-grid { grid-template-columns: 1fr; }
       .uncertainty-grid { grid-template-columns: 1fr; }
+      .landing-title { font-size: 32px; }
+    }
+    @media (max-width: 500px) {
+      .stats-grid { grid-template-columns: 1fr; }
     }
 
-    /* =====================================================================
-       SCROLLBAR
-       ===================================================================== */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-
-    /* =====================================================================
-       MISC UTILITIES
-       ===================================================================== */
-    .hidden { display: none !important; }
-
-    .section-divider {
-      width: 40px;
-      height: 2px;
-      background: var(--accent);
-      margin-bottom: 16px;
-    }
-
-    .error-msg {
-      background: rgba(220,38,38,.06);
-      border: 1px solid rgba(220,38,38,.2);
-      border-radius: 4px;
-      padding: 14px 16px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--red);
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      margin-top: 10px;
-    }
-
-    .btn-generate {
-      background: transparent;
-      border: 1px solid var(--accent);
-      color: var(--accent);
-      padding: 10px 24px;
-      font-family: var(--mono);
-      font-size: .75rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      border-radius: 6px;
-      transition: background .2s, color .2s;
-    }
-    .btn-generate:hover { background: var(--accent); color: var(--bg); }
-    .btn-generate:disabled { opacity: .45; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
   <!-- =====================================================================
-       NAVBAR
+       NAVBAR (shown on input/loading; hidden in results)
        ===================================================================== -->
   <nav id="navbar">
-    <a href="#hero" class="nav-logo">Verify<span style="color:var(--text)">.lk</span></a>
-    <ul class="nav-links">
-      <li><a href="#hero">Home</a></li>
-      <li><a href="#details-section">Analysis</a></li>
-      <li><a href="how-it-works.html">How It Works</a></li>
-      <li><a href="#hero">About</a></li>
-    </ul>
+    <a href="#" class="nav-logo">Verify<span>LK</span></a>
     <button class="btn-nav theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-      <span id="theme-icon">☀</span>
-      <span id="theme-label">Light</span>
+      <span id="theme-icon">☽</span>
+      <span id="theme-label">Dark</span>
     </button>
   </nav>
 
   <!-- =====================================================================
-       HERO SECTION
+       HERO — holds input + loading states
        ===================================================================== -->
   <section id="hero">
-    <div class="hero-center">
-      <div class="brand">
-        <h1 class="brand-name">Verify<span class="brand-dot">LK</span></h1>
-        <p class="brand-tagline">AI-powered fact checking for Sri Lankan political claims</p>
-      </div>
+    <div class="hero-inner">
 
-      <div id="verification-panel">
-        <div class="panel-header">
-          <span class="panel-header-label">Live Verification</span>
-          <span class="panel-status"><span class="dot"></span>Active</span>
+      <!-- INPUT STATE -->
+      <div id="input-state">
+        <div class="landing-brand" style="margin-bottom:36px">
+          <h1 class="landing-title">Check a claim<br>before you share it.</h1>
+          <p class="landing-sub">VerifyLK searches the evidence, weighs every source by credibility and bias, and explains its verdict — including exactly what it's unsure about.</p>
         </div>
 
-        <!-- INPUT STATE -->
-        <div id="input-state">
-          <div class="search-wrap">
-            <span class="search-icon">⌕</span>
+        <div class="search-card">
+          <div class="search-card-row">
             <input
               type="text"
               id="claim-input"
-              placeholder='Enter a claim to verify… e.g. "The government reduced fuel prices by 20%"'
+              placeholder='Enter a claim to verify…'
             />
-            <button class="btn-verify" onclick="verifyClaim()">Verify →</button>
+            <button class="btn-verify" onclick="verifyClaim()">Verify claim →</button>
           </div>
           <div id="error-container"></div>
-          <p class="input-hint">Ctrl + Enter to submit</p>
+          <span class="search-input-label">claim</span>
         </div>
 
-        <!-- LOADING STATE -->
-        <div id="loading-state">
-          <div class="spinner"></div>
-          <div id="loading-msg">Retrieving evidence...</div>
-        </div>
-
-        <!-- RESULTS STATE -->
-        <div id="results-state">
-          <div id="results-rows"></div>
-          <div class="bar-block">
-            <div class="bar-label-row">
-              <span class="label-xs">Support Score</span>
-              <span class="label-xs" id="bar-support-pct">—</span>
-            </div>
-            <div class="bar-track">
-              <div class="bar-fill bar-lime" id="bar-support" style="width:0%"></div>
-            </div>
-            <div class="bar-label-row">
-              <span class="label-xs">Evidence Coverage</span>
-              <span class="label-xs" id="bar-coverage-pct">—</span>
-            </div>
-            <div class="bar-track">
-              <div class="bar-fill bar-orange" id="bar-coverage" style="width:0%"></div>
-            </div>
+        <div class="examples-section" style="width:100%">
+          <span class="examples-label">Try an example</span>
+          <div class="example-chips">
+            <button class="example-chip" onclick="setExample('40,000 civilians were killed in Mullivaikkal')">40,000 civilians were killed in Mullivaikkal</button>
+            <button class="example-chip" onclick="setExample('The government reduced fuel prices by 20%')">The government reduced fuel prices by 20%</button>
+            <button class="example-chip" onclick="setExample('Sri Lanka has the highest literacy rate in South Asia')">Sri Lanka has the highest literacy rate in South Asia</button>
           </div>
-          <button class="btn-reset" onclick="resetForm()">← New Claim</button>
         </div>
 
-      </div><!-- #verification-panel -->
-    </div><!-- .hero-center -->
+        <div class="landing-features">
+          <span>Weighs source credibility</span>
+          <span>Detects bias</span>
+          <span>Shows its uncertainty</span>
+        </div>
+      </div><!-- #input-state -->
 
+      <!-- LOADING STATE -->
+      <div id="loading-state">
+        <div class="spinner"></div>
+        <h2 class="loading-heading">Analyzing claim...</h2>
+        <p id="loading-claim-display"></p>
+        <ul class="step-list">
+          <li class="step" id="step-0">Searching the web for relevant evidence…</li>
+          <li class="step" id="step-1">Scoring source credibility &amp; authority…</li>
+          <li class="step" id="step-2">Running entailment against the claim…</li>
+          <li class="step" id="step-3">Detecting bias patterns &amp; weighting sources…</li>
+        </ul>
+        <div id="live-sources-grid"></div>
+      </div><!-- #loading-state -->
+
+    </div><!-- .hero-inner -->
   </section><!-- #hero -->
 
   <!-- =====================================================================
-       TEMPORAL WARNING BANNER
+       TEMPORAL BANNER
        ===================================================================== -->
   <div id="temporal-banner">
     <div class="temporal-inner">
@@ -1252,167 +1171,320 @@
   </div>
 
   <!-- =====================================================================
-       DETAILS SECTION
+       RESULTS PAGE — full width, shown after verification
        ===================================================================== -->
-  <section id="details-section">
-    <div class="section-header">Detailed Analysis</div>
+  <div id="results-page">
 
-    <!-- 1. AI Explanation -->
-    <div class="accordion" id="acc-explanation">
-      <button class="accordion-header" onclick="toggleAccordion('acc-explanation')">
-        <span>AI Explanation</span>
-        <span class="accordion-chevron">&#8964;</span>
+    <!-- Top bar -->
+    <div class="results-topbar">
+      <button class="btn-new-claim" onclick="resetForm()">← New claim</button>
+      <div class="topbar-claim">
+        <span class="topbar-claim-label">Claim under review</span>
+        <span id="results-claim-header"></span>
+      </div>
+      <button class="btn-nav theme-toggle" id="theme-toggle-results" aria-label="Toggle theme">
+        <span id="theme-icon-results">☽</span>
       </button>
-      <div class="accordion-body">
+    </div>
+
+    <div class="results-body">
+
+      <!-- 2-column summary -->
+      <div class="results-summary">
+
+        <!-- Verdict card (always dark) -->
+        <div class="verdict-card-large">
+          <div class="verdict-card-eyebrow">Verdict</div>
+          <div id="results-verdict-label" class="verdict-main-label">—</div>
+          <div id="results-verdict-sub" class="verdict-main-sub">—</div>
+          <div id="results-verdict-scale"></div>
+          <div class="verdict-conf-row">
+            <span class="verdict-conf-label">Confidence</span>
+            <span id="results-confidence-val" class="verdict-conf-val">—</span>
+          </div>
+          <div class="verdict-conf-track">
+            <div id="results-confidence-fill" class="verdict-conf-fill" style="width:0%"></div>
+            <div class="verdict-threshold-line"></div>
+          </div>
+          <div id="results-confidence-note" class="verdict-conf-note"></div>
+        </div>
+
+        <!-- 2×2 stats grid -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div id="stat-sources-val" class="stat-val">—</div>
+            <div class="stat-label">Sources evaluated</div>
+            <div id="stat-sources-sub" class="stat-sub">—</div>
+          </div>
+          <div class="stat-card">
+            <div id="stat-bias-val" class="stat-val">—</div>
+            <div class="stat-label">Bias signals</div>
+            <div id="stat-bias-sub" class="stat-sub">—</div>
+          </div>
+          <div class="stat-card">
+            <div id="stat-support-val" class="stat-val">—</div>
+            <div class="stat-label">Support score</div>
+            <div class="stat-sub">net of weights</div>
+          </div>
+          <div class="stat-card">
+            <div id="stat-coverage-val" class="stat-val">—</div>
+            <div class="stat-label">Evidence coverage</div>
+            <div class="stat-sub">claim aspects</div>
+          </div>
+        </div>
+
+      </div><!-- .results-summary -->
+
+      <!-- AI Explanation (always visible, streams in) -->
+      <div class="explanation-section">
+        <div class="explanation-section-title">AI Explanation</div>
         <div id="explanation-body"></div>
       </div>
-    </div>
 
-    <!-- 2. Evidence Sources -->
-    <div class="accordion" id="acc-evidence">
-      <button class="accordion-header" onclick="toggleAccordion('acc-evidence')">
-        <span>
-          Evidence Sources
-          <span class="badge" id="evidence-badge">0</span>
-        </span>
-        <span class="accordion-chevron">&#8964;</span>
-      </button>
-      <div class="accordion-body">
-        <div id="evidence-grid"></div>
-      </div>
-    </div>
-
-    <!-- 2. Bias Analysis -->
-    <div class="accordion" id="acc-bias">
-      <button class="accordion-header" onclick="toggleAccordion('acc-bias')">
-        <span>Bias Analysis</span>
-        <span class="accordion-chevron">&#8964;</span>
-      </button>
-      <div class="accordion-body">
-        <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
-          <span style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Claim type</span>
-          <span id="bias-claim-type" style="font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(212,255,78,.08);border:1px solid rgba(212,255,78,.2);border-radius:2px;padding:2px 8px">—</span>
-          <span id="bias-weights-hint" style="font-size:10px;color:var(--muted);margin-left:4px"></span>
-        </div>
-        <div class="bias-grid">
-          <div class="bias-cell">
-            <div class="bias-cell-label">Framing</div>
-            <div class="bias-cell-value" id="bias-framing">—</div>
-          </div>
-          <div class="bias-cell">
-            <div class="bias-cell-label">Political Direction</div>
-            <div class="bias-cell-value" id="bias-political">—</div>
-          </div>
-          <div class="bias-cell">
-            <div class="bias-cell-label">Emotional Tone</div>
-            <div class="bias-cell-value" id="bias-tone-label">—</div>
-            <div class="tone-bar">
-              <div class="tone-indicator" id="tone-indicator" style="left:50%"></div>
-            </div>
-          </div>
-        </div>
-        <div class="divergence-display">
-          <span class="divergence-label">Source Divergence</span>
-          <span class="divergence-value" id="divergence-value">—</span>
-        </div>
-        <!-- Claim-level bias analysis block -->
-        <div id="claim-bias-block" style="display:none;margin-top:16px;padding:12px 14px;border:1px solid rgba(212,255,78,.15);border-radius:6px;background:rgba(212,255,78,.04)">
-          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:8px">Claim-Level Bias</div>
-          <div id="claim-bias-sl-flags" style="display:none;margin-bottom:8px"></div>
-          <div id="claim-bias-phrases" style="display:none;margin-bottom:8px"></div>
-          <div id="claim-bias-explanation" style="display:none;font-size:.78rem;color:var(--muted);line-height:1.55"></div>
-        </div>
-        <div id="bias-sources-list" style="margin-top:16px"></div>
-        <div id="bias-patterns-section" style="display:none; margin-top:20px">
-          <div class="bias-sources-header" style="margin-bottom:12px">Cross-Source Bias Patterns</div>
-          <div id="bias-patterns-body"></div>
-        </div>
-        <div style="margin-top:16px">
-          <button class="explain-btn" id="bias-explain-btn" onclick="getBiasExplanation()" style="display:none">
-            Analyse Bias Patterns
+      <!-- Tabs: Sources / Bias analysis / Uncertainty -->
+      <div class="results-tabs">
+        <div class="tab-nav">
+          <button class="tab-btn active" onclick="switchTab('sources')" data-tab="sources">
+            Sources <span class="tab-count" id="sources-tab-count">0</span>
+          </button>
+          <button class="tab-btn" onclick="switchTab('bias')" data-tab="bias">
+            Bias analysis <span class="tab-count" id="bias-tab-count">0</span>
+          </button>
+          <button class="tab-btn" onclick="switchTab('uncertainty')" data-tab="uncertainty">
+            Uncertainty
           </button>
         </div>
-      </div>
-    </div>
 
-    <!-- 3. Uncertainty Decomposition -->
-    <div class="accordion" id="acc-uncertainty">
-      <button class="accordion-header" onclick="toggleAccordion('acc-uncertainty')">
-        <span>Uncertainty Decomposition</span>
-        <span class="accordion-chevron">&#8964;</span>
-      </button>
-      <div class="accordion-body">
-        <div class="uncertainty-grid">
-          <div class="unc-card">
-            <div class="unc-label">Epistemic</div>
-            <div class="unc-value" id="unc-epistemic">—</div>
-            <div class="unc-bar-track">
-              <div class="unc-bar-fill" id="unc-bar-epistemic" style="width:0%"></div>
-            </div>
-            <div class="unc-desc">Uncertainty from disagreement between sources</div>
+        <!-- Sources tab -->
+        <div id="tab-sources" class="tab-panel active">
+          <div class="filter-row">
+            <button class="filter-pill active" data-filter="all" onclick="renderFilteredSources('all')">
+              All <span class="pill-count" id="filter-all-count">0</span>
+            </button>
+            <button class="filter-pill" data-filter="supported" onclick="renderFilteredSources('supported')">
+              Supported <span class="pill-count" id="filter-supported-count">0</span>
+            </button>
+            <button class="filter-pill" data-filter="neutral" onclick="renderFilteredSources('neutral')">
+              Neutral <span class="pill-count" id="filter-neutral-count">0</span>
+            </button>
+            <button class="filter-pill" data-filter="refuted" onclick="renderFilteredSources('refuted')">
+              Refuted <span class="pill-count" id="filter-refuted-count">0</span>
+            </button>
           </div>
-          <div class="unc-card">
-            <div class="unc-label">Aleatoric</div>
-            <div class="unc-value" id="unc-aleatoric">—</div>
-            <div class="unc-bar-track">
-              <div class="unc-bar-fill" id="unc-bar-aleatoric" style="width:0%"></div>
-            </div>
-            <div class="unc-desc">Uncertainty from evidence scarcity</div>
-          </div>
-          <div class="unc-card">
-            <div class="unc-label">Bias-Induced</div>
-            <div class="unc-value" id="unc-bias-induced">—</div>
-            <div class="unc-bar-track">
-              <div class="unc-bar-fill" id="unc-bar-bias-induced" style="width:0%"></div>
-            </div>
-            <div class="unc-desc">Uncertainty from biased source alignment</div>
-          </div>
+          <div id="evidence-grid"></div>
         </div>
-      </div>
-    </div>
 
-  </section><!-- #details-section -->
+        <!-- Bias analysis tab -->
+        <div id="tab-bias" class="tab-panel">
+          <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <span style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Claim type</span>
+            <span id="bias-claim-type" style="font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(116,170,0,.08);border:1px solid rgba(116,170,0,.2);border-radius:2px;padding:2px 8px">—</span>
+            <span id="bias-weights-hint" style="font-size:10px;color:var(--muted);margin-left:4px"></span>
+          </div>
+          <div class="bias-grid">
+            <div class="bias-cell">
+              <div class="bias-cell-label">Framing</div>
+              <div class="bias-cell-value" id="bias-framing">—</div>
+            </div>
+            <div class="bias-cell">
+              <div class="bias-cell-label">Political Direction</div>
+              <div class="bias-cell-value" id="bias-political">—</div>
+            </div>
+            <div class="bias-cell">
+              <div class="bias-cell-label">Emotional Tone</div>
+              <div class="bias-cell-value" id="bias-tone-label">—</div>
+              <div class="tone-bar">
+                <div class="tone-indicator" id="tone-indicator" style="left:50%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="divergence-display">
+            <span class="divergence-label">Source Divergence</span>
+            <span class="divergence-value" id="divergence-value">—</span>
+          </div>
+          <div id="claim-bias-block" style="display:none;margin-top:16px;padding:12px 14px;border:1px solid rgba(116,170,0,.15);border-radius:6px;background:rgba(116,170,0,.04)">
+            <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:8px">Claim-Level Bias</div>
+            <div id="claim-bias-sl-flags" style="display:none;margin-bottom:8px"></div>
+            <div id="claim-bias-phrases" style="display:none;margin-bottom:8px"></div>
+            <div id="claim-bias-explanation" style="display:none;font-size:.78rem;color:var(--muted);line-height:1.55"></div>
+          </div>
+          <div id="bias-sources-list" style="margin-top:16px"></div>
+          <div id="bias-patterns-section" style="display:none;margin-top:20px">
+            <div class="bias-sources-header" style="margin-bottom:12px">Cross-Source Bias Patterns</div>
+            <div id="bias-patterns-body"></div>
+          </div>
+          <div style="margin-top:16px">
+            <button class="explain-btn" id="bias-explain-btn" onclick="getBiasExplanation()" style="display:none">
+              Analyse Bias Patterns
+            </button>
+          </div>
+        </div><!-- #tab-bias -->
+
+        <!-- Uncertainty tab -->
+        <div id="tab-uncertainty" class="tab-panel">
+          <div class="uncertainty-grid">
+            <div class="unc-card">
+              <div class="unc-label">Epistemic</div>
+              <div class="unc-value" id="unc-epistemic">—</div>
+              <div class="unc-bar-track"><div class="unc-bar-fill" id="unc-bar-epistemic" style="width:0%"></div></div>
+              <div class="unc-desc">Uncertainty from disagreement between sources</div>
+            </div>
+            <div class="unc-card">
+              <div class="unc-label">Aleatoric</div>
+              <div class="unc-value" id="unc-aleatoric">—</div>
+              <div class="unc-bar-track"><div class="unc-bar-fill" id="unc-bar-aleatoric" style="width:0%"></div></div>
+              <div class="unc-desc">Uncertainty from evidence scarcity</div>
+            </div>
+            <div class="unc-card">
+              <div class="unc-label">Bias-Induced</div>
+              <div class="unc-value" id="unc-bias-induced">—</div>
+              <div class="unc-bar-track"><div class="unc-bar-fill" id="unc-bar-bias-induced" style="width:0%"></div></div>
+              <div class="unc-desc">Uncertainty from biased source alignment</div>
+            </div>
+          </div>
+        </div><!-- #tab-uncertainty -->
+
+      </div><!-- .results-tabs -->
+    </div><!-- .results-body -->
+  </div><!-- #results-page -->
 
 
   <!-- =====================================================================
        JAVASCRIPT
        ===================================================================== -->
   <script>
-    // const API_BASE = 'http://localhost:8000';
-    // const API_BASE = 'https://verifylk-api-456488462275.us-central1.run.app';
-    // const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    //   ? 'http://localhost:8000'
-    //   : 'https://verifylk-api-456488462275.us-central1.run.app';
+    const API_BASE = 'http://localhost:8000';
+    // const API_BASE = 'https://verifylk-api-604936778695.us-central1.run.app';
 
-    // const API_BASE = 'http://localhost:8000';
-    const API_BASE = 'https://verifylk-api-604936778695.us-central1.run.app';
-    // -----------------------------------------------------------------------
-    // Loading message — driven by real SSE status events
-    // -----------------------------------------------------------------------
     let _lastClaim = '';
-
-    function setLoadingMsg(msg) {
-      const el = document.getElementById('loading-msg');
-      el.style.opacity = '0';
-      setTimeout(() => { el.textContent = msg; el.style.opacity = '1'; }, 150);
-    }
+    let _allSources = [];
+    let _excludedSources = [];
 
     // -----------------------------------------------------------------------
-    // UI state helpers
+    // State management
     // -----------------------------------------------------------------------
     function showState(state) {
-      document.getElementById('input-state').style.display   = state === 'input'   ? 'block' : 'none';
+      const navbar      = document.getElementById('navbar');
+      const hero        = document.getElementById('hero');
+      const resultsPage = document.getElementById('results-page');
+
+      navbar.style.display      = state === 'results' ? 'none' : '';
+      hero.style.display        = state !== 'results' ? 'flex' : 'none';
+      resultsPage.style.display = state === 'results' ? 'block' : 'none';
+
+      document.getElementById('input-state').style.display   = state === 'input'   ? 'flex'  : 'none';
       document.getElementById('loading-state').style.display = state === 'loading' ? 'flex'  : 'none';
-      document.getElementById('results-state').style.display = state === 'results' ? 'block' : 'none';
     }
 
     function showError(msg) {
-      const container = document.getElementById('error-container');
-      container.innerHTML = `<div class="error-msg">${escapeHtml(msg)}</div>`;
+      document.getElementById('error-container').innerHTML =
+        `<div class="error-msg">${escapeHtml(msg)}</div>`;
     }
-
     function clearError() {
       document.getElementById('error-container').innerHTML = '';
+    }
+
+    // -----------------------------------------------------------------------
+    // Example chips
+    // -----------------------------------------------------------------------
+    function setExample(text) {
+      document.getElementById('claim-input').value = text;
+      document.getElementById('claim-input').focus();
+    }
+
+    // -----------------------------------------------------------------------
+    // Loading step activation — driven by SSE status messages
+    // -----------------------------------------------------------------------
+    function _activateStepsUpTo(n) {
+      for (let i = 0; i < n; i++) {
+        const el = document.getElementById(`step-${i}`);
+        if (el) { el.classList.add('step-done'); el.classList.remove('step-active'); }
+      }
+      const active = document.getElementById(`step-${n}`);
+      if (active) active.classList.add('step-active');
+    }
+
+    function setLoadingMsg(msg) {
+      const lower = msg.toLowerCase();
+      if (lower.includes('temporal') || lower.includes('searching') || lower.includes('database') ||
+          lower.includes('retriev') || lower.includes('fetching') || lower.includes('reading') ||
+          lower.includes('cross-check') || lower.includes('web for')) {
+        _activateStepsUpTo(0);
+      } else if (lower.includes('nli') || lower.includes('verif') || lower.includes('entailment') ||
+                 lower.includes('running')) {
+        _activateStepsUpTo(2);
+      } else if (lower.includes('bias') || lower.includes('weight') || lower.includes('computing') ||
+                 lower.includes('scoring')) {
+        _activateStepsUpTo(3);
+      } else if (lower.includes('generating') || lower.includes('verdict')) {
+        _activateStepsUpTo(3);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Pending source cards (shown in loading state)
+    // -----------------------------------------------------------------------
+    function appendSourceDivider(label) {
+      const grid = document.getElementById('live-sources-grid');
+      grid.insertAdjacentHTML('beforeend',
+        `<div class="ev-excluded-divider" style="grid-column:1/-1">${escapeHtml(label)}</div>`);
+    }
+
+    function appendPendingSource(s) {
+      const grid = document.getElementById('live-sources-grid');
+      const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
+      const titleHtml    = s.link
+        ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
+        : titleDisplay;
+      const sourceDomain = s.source || extractDomain(s.link || '');
+      const dateStr  = s.date ? escapeHtml(s.date) : '';
+      const snippet  = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+      grid.insertAdjacentHTML('beforeend', `
+        <div class="ev-card ev-pending">
+          <div class="ev-card-top">
+            <div class="ev-title">${titleHtml}</div>
+            <span class="verdict-badge badge-pending">···</span>
+          </div>
+          <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
+          ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
+        </div>`);
+    }
+
+    function renderPendingEvidence(sources, phase) {
+      if (!sources || !sources.length) return;
+      const grid = document.getElementById('live-sources-grid');
+      const dbSources  = sources.filter(s => s.evidence_type === 'database');
+      const webSources = sources.filter(s => s.evidence_type !== 'database');
+
+      const renderGroup = (group, label) => {
+        if (!group.length) return;
+        const current = grid.querySelectorAll('.ev-card').length;
+        grid.insertAdjacentHTML('beforeend',
+          `<div class="ev-excluded-divider" style="grid-column:1/-1;margin-top:${current > 0 ? '8px' : '0'}">${label} — verifying…</div>`);
+        group.forEach((s, i) => {
+          setTimeout(() => {
+            const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
+            const titleHtml    = s.link
+              ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
+              : titleDisplay;
+            const sourceDomain = s.source || extractDomain(s.link || '');
+            const dateStr  = s.date ? escapeHtml(s.date) : '';
+            const snippet  = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+            grid.insertAdjacentHTML('beforeend', `
+              <div class="ev-card ev-pending">
+                <div class="ev-card-top">
+                  <div class="ev-title">${titleHtml}</div>
+                  <span class="verdict-badge badge-pending">···</span>
+                </div>
+                <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
+                ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
+              </div>`);
+          }, i * 130);
+        });
+      };
+
+      renderGroup(dbSources, 'Government database');
+      renderGroup(webSources, 'Web sources');
     }
 
     // -----------------------------------------------------------------------
@@ -1425,10 +1497,17 @@
       _lastClaim = claim;
       clearError();
       showState('loading');
-      setLoadingMsg('Analyzing temporal context...');
 
-      // Hide details + banner from a previous run
-      document.getElementById('details-section').style.display = 'none';
+      // Reset step list
+      document.querySelectorAll('.step').forEach(s =>
+        s.classList.remove('step-active', 'step-done'));
+
+      // Show claim in loading state
+      const claimDisplay = document.getElementById('loading-claim-display');
+      if (claimDisplay) claimDisplay.textContent = `"${claim}"`;
+
+      // Reset live grid and banners
+      document.getElementById('live-sources-grid').innerHTML = '';
       document.getElementById('temporal-banner').style.display = 'none';
 
       try {
@@ -1443,7 +1522,7 @@
           throw new Error(err.detail || `HTTP ${res.status}`);
         }
 
-        const reader = res.body.getReader();
+        const reader  = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
@@ -1453,7 +1532,7 @@
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          buffer = lines.pop(); // keep incomplete last line
+          buffer = lines.pop();
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
@@ -1462,6 +1541,12 @@
 
             if (event.type === 'status') {
               setLoadingMsg(event.message);
+            } else if (event.type === 'evidence') {
+              renderPendingEvidence(event.sources, event.phase);
+            } else if (event.type === 'source_divider') {
+              appendSourceDivider(event.label);
+            } else if (event.type === 'source') {
+              appendPendingSource(event.source);
             } else if (event.type === 'result') {
               renderResults(event.data);
             } else if (event.type === 'error') {
@@ -1477,159 +1562,194 @@
     }
 
     // -----------------------------------------------------------------------
-    // Render all results
+    // Render results — populates the results page
     // -----------------------------------------------------------------------
     function renderResults(data) {
       showState('results');
 
-      // --- Claim display ---
-      document.getElementById('results-rows').innerHTML =
-        `<div class="result-claim">"${escapeHtml(data.claim)}"</div>`;
+      // Claim in top bar
+      const claimHeader = document.getElementById('results-claim-header');
+      if (claimHeader) claimHeader.textContent = data.claim;
 
-      // --- Verdict rows ---
+      // Verdict
       const verdictKey  = verdictClass(data.verdict);
       const verdictMeta = _VERDICT_META[verdictKey] || _VERDICT_META.UNCERTAIN;
-      // Count bias flags separately: weight-penalised vs SL-specific patterns
-      const penalisedCount = (data.sources || []).filter(s => s.bias_alignment > 0.15).length;
-      const slPatternCount  = (data.sources || []).filter(s =>
-        s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization
-      ).length;
-      // Union: sources that have ANY bias signal (penalty OR pattern)
-      const biasedCount = (data.sources || []).filter(s =>
+      const confPct     = Math.round((data.confidence || 0) * 100);
+
+      const labelEl = document.getElementById('results-verdict-label');
+      labelEl.className = `verdict-main-label verdict-${verdictKey}`;
+      labelEl.textContent = verdictMeta.label;
+      document.getElementById('results-verdict-sub').textContent = verdictMeta.sub;
+      document.getElementById('results-verdict-scale').innerHTML  = verdictScaleHtml(verdictKey);
+      document.getElementById('results-confidence-val').textContent = fmtPct(data.confidence);
+      document.getElementById('results-confidence-fill').style.width = `${confPct}%`;
+      document.getElementById('results-confidence-note').textContent =
+        confPct < 60 ? 'Below the 60% definitive-verdict threshold.' : '';
+
+      // Stats
+      const srcList      = data.sources || [];
+      const evaluated    = srcList.filter(s => !s.excluded);
+      const excluded     = srcList.filter(s =>  s.excluded);
+      const biasedCount  = srcList.filter(s =>
         s.bias_alignment > 0.15 || s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization
       ).length;
+      const penalisedCount = srcList.filter(s => s.bias_alignment > 0.15).length;
+      const supportPct   = Math.round((data.support_score || 0) * 100);
+      const totalSrc     = data.total_sources || 1;
+      const coveragePct  = Math.round(
+        Math.min(((data.db_sources || 0) + (data.web_sources || 0)) / totalSrc, 1) * 100
+      );
 
-      // Verdict row: large label + sublabel + 5-step scale
-      document.getElementById('results-rows').innerHTML += `
-        <div class="result-row" style="align-items:flex-start">
-          <span class="result-row-label">Verdict</span>
-          <span class="result-row-value" style="display:flex;flex-direction:column;gap:2px">
-            <span class="verdict-${verdictKey}" style="font-size:15px;font-weight:700">${escapeHtml(verdictMeta.label)}</span>
-            <span class="verdict-sublabel">${escapeHtml(verdictMeta.sub)}</span>
-            ${verdictScaleHtml(verdictKey)}
-          </span>
-        </div>`;
+      document.getElementById('stat-sources-val').textContent = data.total_sources || 0;
+      document.getElementById('stat-sources-sub').textContent =
+        `${evaluated.length} used · ${excluded.length} social`;
+      document.getElementById('stat-bias-val').textContent = biasedCount;
+      document.getElementById('stat-bias-sub').textContent =
+        biasedCount === 0 ? 'all below threshold'
+        : `${penalisedCount} weight-penalised`;
+      document.getElementById('stat-support-val').textContent  = `${supportPct}%`;
+      document.getElementById('stat-coverage-val').textContent = `${coveragePct}%`;
 
-      const infoRows = [
-        { label: 'Confidence',             value: fmtPct(data.confidence),    cls: 'result-row-value' },
-        { label: 'Sources Evaluated',      value: String(data.total_sources),  cls: 'result-row-value' },
-        {
-          label: 'Bias Signals Detected',
-          value: biasedCount === 0 ? '0'
-               : `${biasedCount}${penalisedCount > 0 ? ` (${penalisedCount} weight-penalised` + (slPatternCount > 0 ? `, ${slPatternCount} pattern-flagged)` : ')') : slPatternCount > 0 ? ` (${slPatternCount} SL pattern)` : ''}`,
-          cls: biasedCount > 0 ? 'result-row-value orange-c' : 'result-row-value',
-        },
-      ];
+      // Tab counts
+      document.getElementById('sources-tab-count').textContent = evaluated.length;
+      const biasFlaggedCount = (data.bias_sources || []).filter(s =>
+        s.alignment > 0.15 || s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization
+      ).length;
+      document.getElementById('bias-tab-count').textContent = biasFlaggedCount;
 
-      document.getElementById('results-rows').innerHTML += infoRows.map(r =>
-        `<div class="result-row">
-          <span class="result-row-label">${escapeHtml(r.label)}</span>
-          <span class="${r.cls}">${escapeHtml(r.value)}</span>
-        </div>`
-      ).join('');
-
-      // --- Progress bars ---
-      const supportPct = Math.round((data.support_score || 0) * 100);
-      const totalSrc   = data.total_sources || 1;
-      const coveragePct = Math.round(Math.min(((data.db_sources || 0) + (data.web_sources || 0)) / totalSrc, 1) * 100);
-
-      setBar('bar-support',   'bar-support-pct',   supportPct);
-      setBar('bar-coverage',  'bar-coverage-pct',  coveragePct);
-
-      // --- Temporal banner ---
+      // Temporal banner
       if (data.temporal_warnings && data.temporal_warnings.length > 0) {
         document.getElementById('temporal-text').textContent = data.temporal_warnings.join(' · ');
         document.getElementById('temporal-banner').style.display = 'block';
       }
 
-      // --- Details section ---
-      renderEvidence(data.sources || []);
+      // Render all detail sections
+      renderEvidence(srcList);
       renderBias(data.claim_bias || {}, data.divergence_level || 'low', data.bias_sources || []);
       renderUncertainty(data.uncertainty || {});
       renderExplanation();
-      document.getElementById('details-section').style.display = 'block';
 
-      // Scroll to panel
-      document.getElementById('verification-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Default to sources tab
+      switchTab('sources');
+
+      // Scroll to top of results page
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     // -----------------------------------------------------------------------
-    // Evidence cards
+    // Tab switching
+    // -----------------------------------------------------------------------
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p =>
+        p.classList.toggle('active', p.id === `tab-${name}`));
+    }
+
+    // -----------------------------------------------------------------------
+    // Evidence — list layout with filter pills
     // -----------------------------------------------------------------------
     function renderEvidence(sources) {
       const evaluated = sources.filter(s => !s.excluded);
       const excluded  = sources.filter(s =>  s.excluded);
 
-      // Badge shows evaluated count; excluded count in parens if any
-      document.getElementById('evidence-badge').textContent =
-        excluded.length ? `${evaluated.length} (+${excluded.length})` : `${evaluated.length}`;
+      _allSources      = evaluated;
+      _excludedSources = excluded;
 
-      if (!sources.length) {
-        document.getElementById('evidence-grid').innerHTML =
-          '<p class="label-xs" style="padding:12px 0">No evidence sources available.</p>';
+      // Filter pill counts
+      const supportedCount = evaluated.filter(s => normaliseVerdict(s.verdict) === 'SUPPORTED').length;
+      const refutedCount   = evaluated.filter(s => normaliseVerdict(s.verdict) === 'REFUTED').length;
+      const neutralCount   = evaluated.filter(s => normaliseVerdict(s.verdict) === 'NEUTRAL').length;
+
+      document.getElementById('filter-all-count').textContent       = evaluated.length;
+      document.getElementById('filter-supported-count').textContent = supportedCount;
+      document.getElementById('filter-neutral-count').textContent   = neutralCount;
+      document.getElementById('filter-refuted-count').textContent   = refutedCount;
+
+      renderFilteredSources('all');
+    }
+
+    function renderFilteredSources(filter) {
+      // Update active pill
+      document.querySelectorAll('.filter-pill').forEach(p =>
+        p.classList.toggle('active', p.dataset.filter === filter));
+
+      let toShow = _allSources;
+      if (filter === 'supported') toShow = _allSources.filter(s => normaliseVerdict(s.verdict) === 'SUPPORTED');
+      else if (filter === 'refuted')  toShow = _allSources.filter(s => normaliseVerdict(s.verdict) === 'REFUTED');
+      else if (filter === 'neutral')  toShow = _allSources.filter(s => normaliseVerdict(s.verdict) === 'NEUTRAL');
+
+      const grid = document.getElementById('evidence-grid');
+
+      if (!toShow.length && !_excludedSources.length) {
+        grid.innerHTML = '<p class="label-xs" style="padding:16px 0">No evidence sources available.</p>';
+        return;
+      }
+      if (!toShow.length) {
+        grid.innerHTML = '<p class="label-xs" style="padding:16px 0">No sources match this filter.</p>';
         return;
       }
 
-      function makeCard(s, isExcluded) {
-        const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
-        const titleHtml    = s.link
-          ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
-          : titleDisplay;
+      const excludedHtml = filter === 'all' && _excludedSources.length
+        ? `<div class="ev-excluded-divider">Not used in verdict — social media (${_excludedSources.length})</div>`
+          + _excludedSources.map(s => makeSourceCard(s, true)).join('')
+        : '';
 
-        const sourceDomain = s.source || extractDomain(s.link);
-        const dateStr = s.date ? escapeHtml(s.date) : '';
-        const snippet = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+      grid.innerHTML = toShow.map(s => makeSourceCard(s, false)).join('') + excludedHtml;
+    }
 
-        if (isExcluded) {
-          const reason = s.exclusion_reason ? escapeHtml(s.exclusion_reason) : 'Not evaluated';
-          return `
-          <div class="ev-card ev-excluded">
-            <div class="ev-card-top">
-              <div class="ev-title">${titleHtml}</div>
-              <span class="ev-excluded-badge">Not evaluated</span>
-            </div>
-            <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
-            ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
-            <div class="ev-excluded-reason">${reason}</div>
-          </div>`;
-        }
+    function makeSourceCard(s, isExcluded) {
+      const vLabel       = isExcluded ? 'error' : normaliseVerdict(s.verdict);
+      const vDisplay     = isExcluded ? 'Not evaluated' : vLabel;
+      const weight       = s.weight != null ? s.weight.toFixed(3) : '—';
+      const sourceDomain = s.source || extractDomain(s.link || '');
+      const dateStr      = s.date ? escapeHtml(s.date) : '';
+      const snippet      = s.snippet ? escapeHtml(cleanSnippet(s.snippet)) : '';
+      const titleDisplay = s.title ? escapeHtml(s.title) : '(Untitled)';
+      const titleHtml    = s.link
+        ? `<a href="${escapeHtml(s.link)}" target="_blank" rel="noopener">${titleDisplay}</a>`
+        : titleDisplay;
 
-        const vLabel = normaliseVerdict(s.verdict);
-        const conf   = s.confidence != null ? fmtPct(s.confidence) : '—';
-        const weight = s.weight       != null ? s.weight.toFixed(3) : '—';
-        const bias   = s.bias_alignment != null ? s.bias_alignment.toFixed(2) : '—';
-        const verdictReason = s.verdict_reason ? escapeHtml(s.verdict_reason) : '';
-        const weightExp = s.weight_explanation
-          ? s.weight_explanation.split('\n').map(l => `<div class="wexp-line">${escapeHtml(l)}</div>`).join('')
-          : '';
+      // Expandable detail section
+      const conf         = s.confidence != null ? fmtPct(s.confidence) : '—';
+      const bias         = s.bias_alignment != null ? s.bias_alignment.toFixed(2) : '—';
+      const verdictReason = s.verdict_reason ? escapeHtml(s.verdict_reason) : '';
+      const weightExp    = s.weight_explanation
+        ? s.weight_explanation.split('\n').map(l => `<div class="wexp-line">${escapeHtml(l)}</div>`).join('')
+        : '';
+      const exclusionReason = s.exclusion_reason ? escapeHtml(s.exclusion_reason) : 'Not evaluated';
 
-        return `
-        <div class="ev-card">
-          <div class="ev-card-top">
-            <div class="ev-title">${titleHtml}</div>
-            <span class="verdict-badge badge-${vLabel}">${vLabel}</span>
+      const detailHtml = isExcluded
+        ? `<div class="source-row-detail">
+             <div class="source-reason" style="color:var(--muted)">${exclusionReason}</div>
+           </div>`
+        : `<div class="source-row-detail">
+             <div class="source-meta-row">
+               <span class="source-meta-item">Confidence <span>${conf}</span></span>
+               <span class="source-meta-item">Bias alignment <span>${bias}</span></span>
+             </div>
+             ${verdictReason ? `<div class="source-reason verdict-${vLabel}" style="margin-top:8px">${verdictReason}</div>` : ''}
+             ${weightExp ? `<div class="wexp-body" style="margin-top:10px">${weightExp}</div>` : ''}
+           </div>`;
+
+      return `
+      <div class="source-row${isExcluded ? ' source-excluded' : ''}" onclick="this.classList.toggle('expanded')">
+        <div class="source-row-main">
+          <div class="source-row-header">
+            <span class="source-verdict-pill badge-${vLabel}">${vDisplay}</span>
+            <span class="source-domain">${escapeHtml(sourceDomain)}</span>
+            ${dateStr ? `<span class="source-date">· ${dateStr}</span>` : ''}
           </div>
-          <div class="ev-source">${escapeHtml(sourceDomain)}${dateStr ? `<span class="ev-date">${dateStr}</span>` : ''}</div>
-          ${snippet ? `<div class="ev-snippet">${snippet}</div>` : ''}
-          ${verdictReason ? `<div class="ev-reason verdict-${vLabel}">${verdictReason}</div>` : ''}
-          <div class="ev-meta">
-            <span class="ev-meta-item">Conf <span>${conf}</span></span>
-            <span class="ev-meta-item">Weight <span>${weight}</span></span>
-            <span class="ev-meta-item">Bias Align <span>${bias}</span></span>
-          </div>
-          ${weightExp ? `<details class="wexp-details"><summary>Weight breakdown</summary><div class="wexp-body">${weightExp}</div></details>` : ''}
-        </div>`;
-      }
-
-      const evaluatedHtml = evaluated.map(s => makeCard(s, false));
-      const excludedHtml  = excluded.map(s => makeCard(s, true));
-
-      const divider = excluded.length
-        ? [`<div class="ev-excluded-divider">Not used in verdict — social media (${excluded.length})</div>`]
-        : [];
-
-      document.getElementById('evidence-grid').innerHTML =
-        [...evaluatedHtml, ...divider, ...excludedHtml].join('');
+          <div class="source-title">${titleHtml}</div>
+          ${snippet ? `<div class="source-snippet">"${snippet}"</div>` : ''}
+          ${detailHtml}
+        </div>
+        ${!isExcluded ? `
+        <div class="source-weight">
+          <div class="source-weight-val">${weight}</div>
+          <div class="source-weight-label">weight</div>
+        </div>` : ''}
+      </div>`;
     }
 
     // -----------------------------------------------------------------------
@@ -1648,15 +1768,14 @@
       document.getElementById('bias-claim-type').textContent = claimType;
       document.getElementById('bias-weights-hint').textContent =
         'penalty weights: ' + (_SENSITIVITY_LABELS[claimType] || '');
-      document.getElementById('bias-framing').textContent   = claimBias.framing_type    || '—';
-      document.getElementById('bias-political').textContent = claimBias.political_direction || '—';
+      document.getElementById('bias-framing').textContent    = claimBias.framing_type       || '—';
+      document.getElementById('bias-political').textContent  = claimBias.political_direction || '—';
       document.getElementById('divergence-value').textContent = divergenceLevel;
 
-      // --- Claim-level bias block ---
-      const claimBlock = document.getElementById('claim-bias-block');
+      const claimBlock  = document.getElementById('claim-bias-block');
       const claimSLFlags = document.getElementById('claim-bias-sl-flags');
       const claimPhrases = document.getElementById('claim-bias-phrases');
-      const claimExpl = document.getElementById('claim-bias-explanation');
+      const claimExpl    = document.getElementById('claim-bias-explanation');
 
       const slFlagHtmlClaim = [
         claimBias.gender_bias_signal    ? '<span class="bias-sl-flag bias-sl-gender">gender-first framing</span>' : '',
@@ -1664,13 +1783,10 @@
         claimBias.trauma_trivialization ? '<span class="bias-sl-flag bias-sl-trauma">trauma trivialisation</span>' : '',
       ].filter(Boolean).join('');
 
-      const loadedPhrases = claimBias.loaded_phrases || [];
-      const tone_val = claimBias.emotional_tone ?? 0;
+      const loadedPhrases  = claimBias.loaded_phrases || [];
+      const tone_val       = claimBias.emotional_tone ?? 0;
       const framingNonNeutral = claimBias.framing_type && claimBias.framing_type !== 'neutral';
-      const toneNonNeutral = Math.abs(tone_val) > 0.2;
-      // Show the block whenever there is any noteworthy claim-level signal.
-      // Fall back to showing if framing or tone is non-neutral so the block
-      // is always visible even when LLM skips SL flags / loaded phrases.
+      const toneNonNeutral    = Math.abs(tone_val) > 0.2;
       const hasAnything = slFlagHtmlClaim || loadedPhrases.length || claimBias.explanation
                           || framingNonNeutral || toneNonNeutral;
 
@@ -1679,45 +1795,35 @@
         if (slFlagHtmlClaim) {
           claimSLFlags.style.display = 'block';
           claimSLFlags.innerHTML = '<span style="font-size:.75rem;color:var(--muted);margin-right:6px">SL patterns:</span>' + slFlagHtmlClaim;
-        } else {
-          claimSLFlags.style.display = 'none';
-        }
+        } else { claimSLFlags.style.display = 'none'; }
         if (loadedPhrases.length) {
           claimPhrases.style.display = 'block';
           claimPhrases.innerHTML = '<span style="font-size:.75rem;color:var(--muted);margin-right:6px">Loaded language:</span>' +
             loadedPhrases.map(p => `<span class="bias-phrase">"${escapeHtml(p)}"</span>`).join('');
-        } else {
-          claimPhrases.style.display = 'none';
-        }
+        } else { claimPhrases.style.display = 'none'; }
         if (claimBias.explanation) {
           claimExpl.style.display = 'block';
           claimExpl.textContent = claimBias.explanation;
-        } else {
-          claimExpl.style.display = 'none';
-        }
+        } else { claimExpl.style.display = 'none'; }
       } else {
         claimBlock.style.display = 'none';
       }
 
-      const tone = claimBias.emotional_tone ?? 0;  // −1 to +1
+      const tone    = claimBias.emotional_tone ?? 0;
       const tonePct = Math.round(((tone + 1) / 2) * 100);
       document.getElementById('tone-indicator').style.left = `${tonePct}%`;
-
       let toneLabel;
       if      (tone < -0.3) toneLabel = 'Negative';
       else if (tone >  0.3) toneLabel = 'Positive';
       else                  toneLabel = 'Neutral';
       document.getElementById('bias-tone-label').textContent = `${toneLabel} (${tone.toFixed(2)})`;
 
-      // Per-source bias breakdown
       const container = document.getElementById('bias-sources-list');
-      const flagged    = (biasSources || []).filter(s => s.alignment > 0.15);
-      // SL-specific pattern flags (gender/ethnic/trauma) — shown even below penalty threshold
-      const slFlagged  = (biasSources || []).filter(s =>
+      const flagged   = (biasSources || []).filter(s => s.alignment > 0.15);
+      const slFlagged = (biasSources || []).filter(s =>
         s.alignment <= 0.15 && (s.gender_bias_signal || s.ethnic_bias_signal || s.trauma_trivialization)
       );
 
-      // Reset patterns section on new result
       document.getElementById('bias-patterns-section').style.display = 'none';
       document.getElementById('bias-patterns-body').innerHTML = '';
       maybeShowBiasPatternBtn(flagged.length);
@@ -1728,21 +1834,19 @@
           <div class="bias-sources-header">Penalised Sources (0)</div>
           <div class="bias-clean-msg">
             No sources exceeded the bias penalty threshold for this claim.
-            ${total > 0 ? `All ${total} source${total > 1 ? 's' : ''} had bias alignment ≤ 0.15 — any detected bias was too weak to meaningfully affect source weights.` : ''}
+            ${total > 0 ? `All ${total} source${total > 1 ? 's' : ''} had bias alignment ≤ 0.15.` : ''}
             <button class="bias-clean-explain-btn" onclick="getBiasExplanation()">Why were no sources flagged?</button>
           </div>`;
         document.getElementById('bias-explain-btn').style.display = 'none';
         return;
       }
 
-      // SL pattern section — shown when gender/ethnic/trauma detected but below penalty threshold
       if (!flagged.length && slFlagged.length) {
         container.innerHTML = `
           <div class="bias-sources-header">Penalised Sources (0)</div>
           <div class="bias-clean-msg">
             No sources exceeded the weight-penalty threshold (alignment ≤ 0.15).
-            However, ${slFlagged.length} source${slFlagged.length > 1 ? 's' : ''} show
-            Sri Lankan-specific bias patterns below the penalty threshold — see below.
+            However, ${slFlagged.length} source${slFlagged.length > 1 ? 's' : ''} show Sri Lankan-specific bias patterns below the penalty threshold.
             <button class="bias-clean-explain-btn" onclick="getBiasExplanation()">Why were no sources penalised?</button>
           </div>
           <div class="bias-sl-patterns-section">
@@ -1774,7 +1878,6 @@
                 `<span class="bias-phrase">"${escapeHtml(p)}"</span>`).join('')}</div>`
             : '';
 
-          // Dimension rows — score × weight = contribution
           const emoProx   = bd.emotional_proximity   ?? 0;
           const polMatch  = bd.political_match_blended ?? bd.political_match_llm ?? 0;
           const framMatch = bd.framing_match          ?? 0;
@@ -1786,8 +1889,7 @@
             return `<div class="bias-dim-bar-wrap"><div class="bias-dim-bar" style="width:${Math.round(value*100)}%;background:${color}"></div></div>`;
           }
 
-          // Sri Lankan-specific flag badges
-          const slFlags = bd.sri_lankan_bias_flags || {};
+          const slFlags   = bd.sri_lankan_bias_flags || {};
           const slFlagHtml = [
             slFlags.gender ? '<span class="bias-sl-flag bias-sl-gender">gender bias</span>' : '',
             slFlags.ethnic ? '<span class="bias-sl-flag bias-sl-ethnic">ethnic bias</span>' : '',
@@ -1835,11 +1937,9 @@
               <span class="bias-dim-weight">×${W.trauma.toFixed(2)}</span>
             </div>` : ''}`;
 
-          // Profile note
           let profileNote = '';
           if (s.profile_score != null) {
-            const lean = s.profile_score > 10 ? 'pro-government'
-                       : s.profile_score < -10 ? 'opposition-leaning' : 'centrist';
+            const lean       = s.profile_score > 10 ? 'pro-government' : s.profile_score < -10 ? 'opposition-leaning' : 'centrist';
             const profileDir = bd.profile_direction || lean;
             profileNote = `<div class="bias-profile-note">
               Historical profile: <strong>${escapeHtml(s.source)}</strong> scores
@@ -1850,12 +1950,9 @@
             </div>`;
           }
 
-          // Source type badge
           const srcTypeBadge = s.source_type && s.source_type !== 'unknown'
             ? `<span class="bias-tag bias-tag-srctype">${escapeHtml(s.source_type.replace('_', ' '))}</span>`
             : '';
-
-          // Penalty estimate: alignment × 0.5 × 100 ≈ % credibility reduction
           const penaltyPct = Math.round(s.alignment * 50);
 
           return `
@@ -1916,37 +2013,33 @@
     }
 
     // -----------------------------------------------------------------------
-    // Uncertainty bars
+    // Uncertainty
     // -----------------------------------------------------------------------
     function renderUncertainty(uncertainty) {
-      setUncertainty('epistemic',   uncertainty.epistemic    || 0);
-      setUncertainty('aleatoric',   uncertainty.aleatoric    || 0);
+      setUncertainty('epistemic',    uncertainty.epistemic    || 0);
+      setUncertainty('aleatoric',    uncertainty.aleatoric    || 0);
       setUncertainty('bias-induced', uncertainty.bias_induced || 0);
     }
-
     function setUncertainty(key, val) {
-      document.getElementById(`unc-${key}`).textContent       = fmtPct(val);
-      document.getElementById(`unc-bar-${key}`).style.width   = `${Math.round(val * 100)}%`;
+      document.getElementById(`unc-${key}`).textContent     = fmtPct(val);
+      document.getElementById(`unc-bar-${key}`).style.width = `${Math.round(val * 100)}%`;
     }
 
     // -----------------------------------------------------------------------
-    // AI explanation — on-demand via /explain
+    // AI Explanation (streamed)
     // -----------------------------------------------------------------------
     function renderExplanation() {
       const el = document.getElementById('explanation-body');
-      el.innerHTML = '<div id="explanation-stream" style="white-space:pre-wrap;font-size:.85rem;line-height:1.7;color:var(--muted)">Generating explanation...</div>';
+      el.innerHTML = '<div style="font-size:.85rem;color:var(--muted)">Generating explanation...</div>';
       getExplanation();
     }
 
     async function getExplanation() {
-      const el  = document.getElementById('explanation-body');
+      const el = document.getElementById('explanation-body');
       if (!_lastClaim) return;
-
-      // Show a live text area that fills in as Gemini streams
       el.innerHTML = '<div id="explanation-stream" style="white-space:pre-wrap;font-size:.85rem;line-height:1.7;color:var(--muted)">Generating explanation...</div>';
       const streamEl = document.getElementById('explanation-stream');
       let fullText = '';
-
       try {
         const res = await fetch(`${API_BASE}/explain/stream`, {
           method: 'POST',
@@ -1957,42 +2050,35 @@
           const err = await res.json().catch(() => ({ detail: res.statusText }));
           throw new Error(err.detail || `HTTP ${res.status}`);
         }
-
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop();
-
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             let event;
             try { event = JSON.parse(line.slice(6)); } catch { continue; }
-
             if (event.type === 'chunk') {
               fullText += event.text;
-              streamEl.textContent = fullText;       // raw text while streaming
+              streamEl.textContent = fullText;
             } else if (event.type === 'done') {
-              el.innerHTML = renderMarkdown(fullText); // render markdown when complete
+              el.innerHTML = renderMarkdown(fullText);
             } else if (event.type === 'error') {
               throw new Error(event.message);
             }
           }
         }
-
       } catch (e) {
         el.innerHTML = `<p style="color:var(--red);font-size:.8rem">${escapeHtml(e.message)}</p>
-          <button class="btn-generate" id="btn-explain" onclick="getExplanation()">Retry</button>`;
+          <button class="explain-btn" onclick="getExplanation()">Retry</button>`;
       }
     }
 
-    // Show the button only when flagged sources exist
     function maybeShowBiasPatternBtn(flaggedCount) {
       const btn = document.getElementById('bias-explain-btn');
       if (btn) btn.style.display = flaggedCount > 0 ? 'inline-block' : 'none';
@@ -2003,14 +2089,11 @@
       const section = document.getElementById('bias-patterns-section');
       const body    = document.getElementById('bias-patterns-body');
       if (!_lastClaim) return;
-
       btn.disabled = true;
       btn.textContent = 'Analysing...';
       section.style.display = 'block';
       body.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">Identifying patterns…</div>';
-
       let fullText = '';
-
       try {
         const res = await fetch(`${API_BASE}/explain/bias`, {
           method: 'POST',
@@ -2021,11 +2104,9 @@
           const err = await res.json().catch(() => ({ detail: res.statusText }));
           throw new Error(err.detail || `HTTP ${res.status}`);
         }
-
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -2055,36 +2136,24 @@
       }
     }
 
-    // Parse the bullet-pattern format from Groq into styled HTML blocks
     function renderBiasPatterns(text) {
-      // Split on bullet points (lines starting with •)
       const blocks = text.split(/(?=^•)/m).map(b => b.trim()).filter(Boolean);
       if (!blocks.length) return `<div style="white-space:pre-wrap;font-size:.8rem;color:var(--muted)">${escapeHtml(text)}</div>`;
-
       return blocks.map(block => {
         const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
         if (!lines.length) return '';
-
-        // First line is the pattern title (strip leading •)
         const title = escapeHtml(lines[0].replace(/^•\s*/, ''));
-
-        let quotes = [];
-        let analysis = '';
+        let quotes = [], analysis = '';
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i];
           if (/^Source\s*\[?\d+\]?\s*\(/i.test(line) || /^Source\s+\d+\s+\(/i.test(line)) {
-            // Source quote line: "Source [N] (domain) said: '...'"
             const m = line.match(/^(Source\s*\[?\d+\]?\s*\([^)]+\))\s+said:\s*['"](.*)['"]\s*$/i);
-            if (m) {
-              quotes.push(`<div class="bias-pattern-quote"><strong>${escapeHtml(m[1])}</strong> said: "${escapeHtml(m[2])}"</div>`);
-            } else {
-              quotes.push(`<div class="bias-pattern-quote">${escapeHtml(line)}</div>`);
-            }
+            if (m) quotes.push(`<div class="bias-pattern-quote"><strong>${escapeHtml(m[1])}</strong> said: "${escapeHtml(m[2])}"</div>`);
+            else   quotes.push(`<div class="bias-pattern-quote">${escapeHtml(line)}</div>`);
           } else if (/^Analysis:/i.test(line)) {
             analysis = escapeHtml(line.replace(/^Analysis:\s*/i, ''));
           }
         }
-
         return `
           <div class="bias-pattern-block">
             <div class="bias-pattern-title">${title}</div>
@@ -2096,66 +2165,31 @@
 
     function renderMarkdown(md) {
       return md
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        // Restore already-escaped < > for HTML passthrough — NOT needed since we'll build tags manually
-        // Headers
-        .replace(/^### (.+)$/gm,  '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm,   '<h3>$1</h3>')
-        .replace(/^# (.+)$/gm,    '<h3>$1</h3>')
-        // HR
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm,  '<h3>$1</h3>')
+        .replace(/^# (.+)$/gm,   '<h3>$1</h3>')
         .replace(/^---+$/gm, '<hr />')
-        // Bold
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        // Italic
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        // Paragraphs (double newline)
         .split(/\n\n+/)
-        .map(p => p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '')
+        .map(p => p.trim() ? `<p>${p.replace(/\n/g,'<br>')}</p>` : '')
         .join('');
     }
 
     // -----------------------------------------------------------------------
-    // Accordion toggle
-    // -----------------------------------------------------------------------
-    function toggleAccordion(id) {
-      const el = document.getElementById(id);
-      el.classList.toggle('open');
-    }
-
-    // -----------------------------------------------------------------------
-    // Reset form
+    // Reset
     // -----------------------------------------------------------------------
     function resetForm() {
       showState('input');
-      document.getElementById('details-section').style.display  = 'none';
-      document.getElementById('temporal-banner').style.display  = 'none';
+      document.getElementById('temporal-banner').style.display = 'none';
       document.getElementById('claim-input').value = '';
       clearError();
-      // Collapse all accordions
-      document.querySelectorAll('.accordion.open').forEach(a => a.classList.remove('open'));
     }
 
     // -----------------------------------------------------------------------
-    // Scroll helper
+    // Verdict helpers
     // -----------------------------------------------------------------------
-    function scrollToPanel() {
-      document.getElementById('verification-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    // -----------------------------------------------------------------------
-    // Utility helpers
-    // -----------------------------------------------------------------------
-    function fmtPct(v) {
-      if (v == null) return '—';
-      return (v * 100).toFixed(1) + '%';
-    }
-
-    function setBar(barId, pctId, pct) {
-      document.getElementById(barId).style.width          = `${pct}%`;
-      document.getElementById(pctId).textContent          = `${pct}%`;
-    }
-
-    // 6-label verdict system helpers (5 on scale + UNCERTAIN off-scale)
     const _VERDICT_META = {
       VERIFIED:       { label: 'Verified',       sub: 'Supported by Evidence',    color: '#4caf50', step: 4 },
       MOSTLY_TRUE:    { label: 'Mostly True',     sub: 'Largely Supported',        color: '#8bc34a', step: 3 },
@@ -2163,7 +2197,6 @@
       MOSTLY_FALSE:   { label: 'Mostly False',    sub: 'Largely Contradicted',     color: '#ff5722', step: 1 },
       REFUTED:        { label: 'Refuted',         sub: 'Contradicted by Evidence', color: '#f44336', step: 0 },
       UNCERTAIN:      { label: 'Uncertain',       sub: 'Insufficient Evidence',    color: '#888888', step: -1 },
-      // legacy — kept so old cached results still render
       SUPPORTED:      { label: 'Verified',        sub: 'Supported by Evidence',    color: '#4caf50', step: 4 },
       CONFLICTING:    { label: 'Partially True',  sub: 'Mixed Evidence',           color: '#ff9800', step: 2 },
     };
@@ -2191,7 +2224,6 @@
         { k: 'MOSTLY_TRUE',    color: '#8bc34a' },
         { k: 'VERIFIED',       color: '#4caf50' },
       ];
-      const meta = _VERDICT_META[key] || _VERDICT_META.UNCERTAIN;
       const segs = steps.map(s =>
         `<div class="verdict-scale-seg${s.k === key || (key === 'SUPPORTED' && s.k === 'VERIFIED') || (key === 'CONFLICTING' && s.k === 'PARTIALLY_TRUE') ? ' active' : ''}"
               style="background:${s.color}"></div>`
@@ -2205,7 +2237,15 @@
       if (u === 'SUPPORTED') return 'SUPPORTED';
       if (u === 'REFUTED')   return 'REFUTED';
       if (u === 'NEUTRAL')   return 'NEUTRAL';
-      return 'error';
+      return 'NEUTRAL';
+    }
+
+    // -----------------------------------------------------------------------
+    // Utility helpers
+    // -----------------------------------------------------------------------
+    function fmtPct(v) {
+      if (v == null) return '—';
+      return (v * 100).toFixed(1) + '%';
     }
 
     function extractDomain(url) {
@@ -2217,20 +2257,20 @@
     function cleanSnippet(s) {
       if (!s) return '';
       return s
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // [text](url) → text
-        .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1') // images
-        .replace(/https?:\/\/\S+/g, '')             // bare URLs
-        .replace(/Title:\s*/i, '')                  // "Title: ..." prefix
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/Title:\s*/i, '')
         .replace(/URL Source:\s*\S+/i, '')
         .replace(/Published Time:\s*[^\n]+/i, '')
         .replace(/Markdown Content:\s*/i, '')
-        .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')   // **bold** / *italic*
-        .replace(/#{1,6}\s+/g, '')                  // headings
+        .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+        .replace(/#{1,6}\s+/g, '')
         .replace(/\n{2,}/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 220)
-        .replace(/\s+\S*$/, '…');                   // clean word boundary
+        .replace(/\s+\S*$/, '…');
     }
 
     function escapeHtml(s) {
@@ -2241,7 +2281,7 @@
     }
 
     // -----------------------------------------------------------------------
-    // Keyboard shortcut — Ctrl+Enter
+    // Keyboard shortcut
     // -----------------------------------------------------------------------
     document.addEventListener('keydown', e => {
       if (e.ctrlKey && e.key === 'Enter') {
@@ -2251,31 +2291,39 @@
     });
 
     // -----------------------------------------------------------------------
+    // Theme toggle (synced across navbar + results topbar)
+    // -----------------------------------------------------------------------
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('theme-icon').textContent = '☀';
+        document.getElementById('theme-label').textContent = 'Light';
+        const ri = document.getElementById('theme-icon-results');
+        if (ri) ri.textContent = '☀';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.getElementById('theme-icon').textContent = '☽';
+        document.getElementById('theme-label').textContent = 'Dark';
+        const ri = document.getElementById('theme-icon-results');
+        if (ri) ri.textContent = '☽';
+      }
+    }
+
+    function _toggleTheme() {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', next);
+      applyTheme(next);
+    }
+
+    document.getElementById('theme-toggle').addEventListener('click', _toggleTheme);
+    document.getElementById('theme-toggle-results').addEventListener('click', _toggleTheme);
+
+    applyTheme(localStorage.getItem('theme') || 'light');
+
+    // -----------------------------------------------------------------------
     // Initial state
     // -----------------------------------------------------------------------
     showState('input');
-
-    // Theme toggle
-    const _themeToggleBtn = document.getElementById('theme-toggle');
-    const _themeIcon = document.getElementById('theme-icon');
-    const _themeLabel = document.getElementById('theme-label');
-    function applyTheme(theme) {
-      if (theme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        _themeIcon.textContent = '☽';
-        _themeLabel.textContent = 'Dark';
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-        _themeIcon.textContent = '☀';
-        _themeLabel.textContent = 'Light';
-      }
-    }
-    applyTheme(localStorage.getItem('theme') || 'light');
-    _themeToggleBtn.addEventListener('click', () => {
-      const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', next);
-      applyTheme(next);
-    });
   </script>
 
 </body>
