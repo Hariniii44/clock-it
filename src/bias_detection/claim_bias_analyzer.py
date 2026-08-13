@@ -355,8 +355,13 @@ class ClaimBiasAnalyzer:
         }
         On failure returns safe defaults so the pipeline continues uninterrupted.
         """
-        if not self.api_key or not sources:
+        if not sources:
             return self._default(sources)
+
+        if not self.api_key:
+            # Vertex AI authentication is handled by the runtime service account.
+            # The API key is not required for the deployed backend.
+            pass
 
         raw_result = self._call_gemini(claim, sources)
         if raw_result is None:
